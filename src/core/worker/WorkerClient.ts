@@ -80,28 +80,58 @@ export class WorkerClient {
 
     return new Promise((resolve, reject) => {
       const messageId = generateID();
+      const cleanup = () => {
+        clearTimeout(timeout);
+        this.messageHandlers.delete(messageId);
+        worker.removeEventListener("error", onError);
+        worker.removeEventListener("messageerror", onMessageError);
+      };
+      const fail = (error: Error) => {
+        cleanup();
+        worker.terminate();
+        reject(error);
+      };
+      const onError = (event: ErrorEvent) =>
+        fail(
+          new Error(
+            `Worker initialization failed: ${event.message || "Worker script could not start"}`,
+          ),
+        );
+      const onMessageError = () =>
+        fail(
+          new Error("Worker initialization failed: unreadable worker message"),
+        );
+      const timeout = setTimeout(
+        () => fail(new Error("Worker initialization timeout")),
+        60000,
+      );
+      worker.addEventListener("error", onError);
+      worker.addEventListener("messageerror", onMessageError);
 
       this.messageHandlers.set(messageId, (message) => {
         if (message.type === "initialized") {
+          cleanup();
           this.isInitialized = true;
           resolve();
+        } else if (message.type === "initialization_error") {
+          fail(new Error(`Worker initialization failed: ${message.message}`));
         }
       });
 
-      worker.postMessage({
-        type: "init",
-        id: messageId,
-        gameStartInfo: this.gameStartInfo,
-        clientID: this.clientID,
-        cdnBase: getCdnBase(),
-      });
-
-      setTimeout(() => {
-        if (!this.isInitialized) {
-          this.messageHandlers.delete(messageId);
-          reject(new Error("Worker initialization timeout"));
-        }
-      }, 60000);
+      try {
+        worker.postMessage({
+          type: "init",
+          id: messageId,
+          gameStartInfo: this.gameStartInfo,
+          clientID: this.clientID,
+          cdnBase: new URL(
+            getCdnBase() || "/",
+            window.location.href,
+          ).href.replace(/\/$/, ""),
+        });
+      } catch (error) {
+        fail(error instanceof Error ? error : new Error(String(error)));
+      }
     });
   }
 

@@ -17,7 +17,9 @@ import {
 const ctx: Worker = self as any;
 globalThis.__ASSET_MANIFEST__ = __ASSET_MANIFEST__;
 let gameRunner: Promise<GameRunner> | null = null;
-const mapLoader = new FetchGameMapLoader((path) => assetUrl(`maps/${path}`));
+const mapLoader = new FetchGameMapLoader(
+  (path) => new URL(assetUrl(`maps/${path}`), globalThis.__CDN_BASE__).href,
+);
 // Yield threshold; not a backlog cap. Used to avoid monopolizing the worker task
 // and flooding the main thread with messages during catch-up.
 const MAX_TICKS_BEFORE_YIELD = 4;
@@ -158,9 +160,14 @@ ctx.addEventListener("message", async (e: MessageEvent<MainThreadMessage>) => {
           } as InitializedMessage);
           return gr;
         });
+        await gameRunner;
       } catch (error) {
         console.error("Failed to initialize game runner:", error);
-        throw error;
+        sendMessage({
+          type: "initialization_error",
+          id: message.id,
+          message: error instanceof Error ? error.message : String(error),
+        });
       }
       break;
 
