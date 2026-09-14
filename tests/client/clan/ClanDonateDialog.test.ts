@@ -71,7 +71,7 @@ describe("clan-donate-dialog", () => {
     expect(currencyButton("soft").getAttribute("aria-checked")).toBe("true");
     expect(currencyButton("hard").getAttribute("aria-checked")).toBe("false");
     expect(currencyButton("soft").textContent).toContain(
-      'clan_modal.donate_your_balance:{"balance":"1,000"}',
+      `clan_modal.donate_your_balance:${JSON.stringify({ balance: (1000).toLocaleString() })}`,
     );
     expect(currencyButton("hard").textContent).toContain(
       'clan_modal.donate_your_balance:{"balance":"25"}',

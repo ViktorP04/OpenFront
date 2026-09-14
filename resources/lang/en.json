@@ -366,6 +366,7 @@
     "leave_clan": "Leave Clan",
     "left_clan": "You left the clan.",
     "manage_clan": "Manage",
+    "map_coming_soon": "Coming Soon",
     "map_frame_title": "Clan territory map",
     "member_banned": "Player banned.",
     "member_count": "{count, plural, one {# member} other {# members}}",
@@ -468,6 +469,7 @@
   "common": {
     "available": "Available",
     "back": "Back",
+    "backend_unreachable": "Can't reach the OpenFront servers. Check your connection and try again.",
     "cancel": "Cancel",
     "cap_label": "Cap",
     "cap_tooltip": "Recipient’s remaining capacity",
@@ -579,6 +581,11 @@
     "steam_rejected": "Steam couldn't confirm your account. Restarting Steam usually fixes this.",
     "steam_unavailable": "Steam isn't running. Start Steam to play online.",
     "steam_wedged": "Steam couldn't verify your session. Restarting Steam usually fixes this."
+  },
+  "desktop_status": {
+    "offline": "Offline: can't reach the OpenFront servers",
+    "retry": "Retry",
+    "retrying": "Retrying…"
   },
   "desktop_update": {
     "blocked": "A Steam update is required for the latest version",
@@ -1252,6 +1259,7 @@
     "caspiansea": "Caspian Sea",
     "caucasus": "Caucasus",
     "centralamerica": "Central America",
+    "channelislands": "Channel Islands",
     "china": "China",
     "choppingblock": "Chopping Block",
     "clearwaterlakes": "Clearwater Lakes",
@@ -1277,6 +1285,7 @@
     "giantworldmap": "Giant World Map",
     "greatlakes": "Great Lakes",
     "gulfofguinea": "Gulf Of Guinea",
+    "gulfofmexico": "Gulf Of Mexico",
     "gulfofstlawrence": "Gulf of St. Lawrence",
     "halkidiki": "Halkidiki",
     "hawaii": "Hawaii",
@@ -1457,6 +1466,7 @@
     "warning": "WARNING"
   },
   "overtime": {
+    "first_place": "1st: {name} ({pct}%)",
     "started": "Overtime! The territory needed to win is now dropping.",
     "title": "Overtime",
     "to_win": "Hold > {pct}% to win"
