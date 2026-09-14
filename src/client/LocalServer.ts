@@ -1,5 +1,6 @@
 import { ClientEnv } from "src/client/ClientEnv";
 import { z } from "zod";
+import { localAccountsEnabled } from "../auth/AuthConfig";
 import { EventBus } from "../core/EventBus";
 import {
   AllPlayersStats,
@@ -358,6 +359,8 @@ export class LocalServer {
       );
       if (response.ok) {
         this.archived = true;
+        if (localAccountsEnabled())
+          document.dispatchEvent(new Event("local-achievements-updated"));
       } else {
         console.error(
           `Failed to archive singleplayer game: ${response.status}`,

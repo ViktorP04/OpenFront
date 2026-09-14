@@ -86,6 +86,14 @@ export class LocalAccountPanel extends LitElement {
         : nothing}
       ${this.username
         ? html`
+            <p class="text-sm text-white/70">
+              Your account includes three free flags: Sunrise, Mountain, and
+              Comet. Equip them in Inventory. Your selection is saved in this
+              browser.
+            </p>
+            <a class=${buttonClass} href="#modal=inventory&tab=flags"
+              >Open inventory</a
+            >
             <form
               class="space-y-3"
               @submit=${(e: SubmitEvent) => this.submit(e, "password")}

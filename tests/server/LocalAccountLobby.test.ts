@@ -71,6 +71,7 @@ it.skipIf(process.env.LOCAL_ACCOUNT_SMOKE_TEST !== "true")(
                 gameID,
                 token: user.jwt,
                 username: user.username,
+                cosmetics: user === host ? { flag: "flag:sunrise" } : {},
                 clanTag: null,
                 turnstileToken: null,
                 gitCommit,

@@ -2,6 +2,7 @@ import type { TemplateResult } from "lit";
 import { html, nothing } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import Countries from "resources/countries.json" with { type: "json" };
+import { localAccountsEnabled } from "../auth/AuthConfig";
 import { UserMeResponse } from "../core/ApiSchemas";
 import { assetUrl } from "../core/AssetUrls";
 import {
@@ -608,23 +609,26 @@ export class InventoryModal extends BaseModal {
           title: translateText("inventory.title"),
           onBack: () => this.close(),
           ariaLabel: translateText("common.back"),
-          rightContent: html`<o-button
-            data-inventory-header-action
-            class="no-crazygames"
-            variant=${isLoggedIn ? "primary" : "danger"}
-            size="sm"
-            .translationKey=${isLoggedIn
-              ? "main.store"
-              : "common.not_logged_in"}
-            @click=${() => {
-              if (isLoggedIn) {
-                this.close();
-                window.location.hash = "modal=store&tab=cosmetics";
-              } else {
-                window.showPage?.("page-account");
-              }
-            }}
-          ></o-button>`,
+          rightContent:
+            isLoggedIn && localAccountsEnabled()
+              ? html``
+              : html`<o-button
+                  data-inventory-header-action
+                  class="no-crazygames"
+                  variant=${isLoggedIn ? "primary" : "danger"}
+                  size="sm"
+                  .translationKey=${isLoggedIn
+                    ? "main.store"
+                    : "common.not_logged_in"}
+                  @click=${() => {
+                    if (isLoggedIn) {
+                      this.close();
+                      window.location.hash = "modal=store&tab=cosmetics";
+                    } else {
+                      window.showPage?.("page-account");
+                    }
+                  }}
+                ></o-button>`,
         })}
 
         <div class="md:flex items-center gap-2 justify-center mt-4">

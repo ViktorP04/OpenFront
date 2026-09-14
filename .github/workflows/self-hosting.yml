@@ -18,7 +18,7 @@ jobs:
           cache: npm
       - run: npm run inst
       - run: npm run verify:maps
-      - run: npx vitest run tests/server/LocalAccounts.test.ts tests/server/PrivateGuest.test.ts tests/AuthConfig.test.ts tests/client/LocalAccountPanel.test.ts tests/DeploySmoke.test.ts tests/WorkerInitialization.test.ts
+      - run: npx vitest run tests/server/LocalAccounts.test.ts tests/server/LocalAchievements.test.ts tests/server/PrivateGuest.test.ts tests/AuthConfig.test.ts tests/client/LocalAccountPanel.test.ts tests/DeploySmoke.test.ts tests/WorkerInitialization.test.ts
       - run: docker compose --env-file .env.example config --quiet
       - name: Build production account image
         run: docker build --build-arg LOCAL_ACCOUNTS=true --build-arg GIT_COMMIT="$GITHUB_SHA" -t openfront-selfhost-test .

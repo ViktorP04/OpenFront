@@ -12,9 +12,12 @@ import {
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { UserMeResponseSchema } from "../core/ApiSchemas";
 import { uuidToBase64url } from "../core/Base64";
+import { eligibleCompletion } from "./LocalAchievements";
+import { freeCosmeticFlares, localCosmetics } from "./LocalCosmetics";
 
 const credentials = z.object({
   username: z
@@ -74,7 +77,11 @@ export async function createLocalAccounts(options: {
       normalized TEXT NOT NULL UNIQUE, salt TEXT NOT NULL, password_hash TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, token_hash TEXT NOT NULL UNIQUE,
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, expires INTEGER NOT NULL);
-    CREATE INDEX IF NOT EXISTS sessions_user ON sessions(user_id);`);
+    CREATE INDEX IF NOT EXISTS sessions_user ON sessions(user_id);
+    CREATE TABLE IF NOT EXISTS map_completions (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      map_name TEXT NOT NULL, difficulty TEXT NOT NULL,
+      PRIMARY KEY (user_id, map_name, difficulty));`);
   let stored = db
     .prepare("SELECT value FROM settings WHERE key='signingKey'")
     .get() as { value: string } | undefined;
@@ -122,6 +129,18 @@ export async function createLocalAccounts(options: {
     dummySalt,
   );
   const router = express.Router();
+  router.get("/cosmetics.json", (_req, res) =>
+    res.json(localCosmetics(options.origin)),
+  );
+  router.get("/reserved_clan_tags", (_req, res) => res.json([]));
+  router.use(
+    "/cosmetics/flags",
+    express.static(
+      fileURLToPath(
+        new URL("../../resources/local-cosmetics/", import.meta.url),
+      ),
+    ),
+  );
   router.use((_req, res, next) => {
     res.set("Cache-Control", "no-store");
     next();
@@ -138,7 +157,11 @@ export async function createLocalAccounts(options: {
     }
     next();
   });
-  router.use(express.json({ limit: "4kb" }));
+  const parseSmallBody = express.json({ limit: "4kb" });
+  router.use((req, res, next) => {
+    if (req.path === "/archive_singleplayer_game") next();
+    else parseSmallBody(req, res, next);
+  });
   // Do not trust client-supplied forwarding headers. Behind a proxy this is a
   // deliberately shared limit; it cannot be bypassed with X-Forwarded-For.
   router.use(
@@ -376,6 +399,34 @@ export async function createLocalAccounts(options: {
     }
     res.clearCookie(cookieName, cookieOptions).json({ ok: true });
   });
+  router.post("/archive_singleplayer_game", async (req, res, next) => {
+    const session = await bearerSession(req);
+    if (!session) {
+      res.status(401).json({ error: "Sign in to save completion progress." });
+      return;
+    }
+    // Express limits the inflated JSON too, including gzip submissions.
+    express.json({ limit: "16mb" })(req, res, (error) => {
+      if (error) {
+        const status = (error as { status?: number }).status;
+        if (status === 413 || status === 400) {
+          res
+            .status(status)
+            .json({ error: "Invalid or oversized game result." });
+        } else next(error);
+        return;
+      }
+      const completion = eligibleCompletion(req.body?.info, session.user_id);
+      if (completion) {
+        db.prepare(
+          "INSERT OR IGNORE INTO map_completions VALUES (?, ?, ?)",
+        ).run(session.user_id, completion.mapName, completion.difficulty);
+      }
+      // Accept non-winning/custom games without awarding a medal. Replay bodies
+      // are deliberately not retained by this personal-progress endpoint.
+      res.json({ recorded: completion !== null });
+    });
+  });
   router.get("/users/@me", async (req, res) => {
     const session = await bearerSession(req);
     if (!session) {
@@ -390,11 +441,18 @@ export async function createLocalAccounts(options: {
         user: { local: { username: user.username } },
         player: {
           publicId: hash(user.id),
+          flares: freeCosmeticFlares,
           username: user.username,
           adfree: true,
           unlimitedRanked: false,
           canCreatePublicLobbies: false,
-          achievements: { singleplayerMap: [] },
+          achievements: {
+            singleplayerMap: db
+              .prepare(
+                "SELECT map_name AS mapName, difficulty FROM map_completions WHERE user_id=? ORDER BY map_name, difficulty",
+              )
+              .all(session.user_id),
+          },
           friends: [],
           subscription: null,
         },

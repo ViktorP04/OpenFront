@@ -804,6 +804,10 @@ class Client {
       getUserMe().then(applyUserMe(authGeneration));
     }
 
+    document.addEventListener("local-achievements-updated", () => {
+      invalidateUserMe();
+      getUserMe().then(applyUserMe(authGeneration));
+    });
     // Re-run auth when the player signs into CrazyGames mid-session. Logout
     // reloads the page, so only login needs handling here.
     crazyGamesSDK.addAuthListener(() => {

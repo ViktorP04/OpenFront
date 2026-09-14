@@ -29,6 +29,7 @@ import { registerGamePreviewRoute } from "./GamePreviewRoute";
 import type { GameServer } from "./GameServer";
 import { isSteamAuthenticated, planJoinVerify, verifyJoin } from "./JoinVerify";
 import { getUserMe, verifyClientToken } from "./jwt";
+import { localCosmeticChecker } from "./LocalCosmetics";
 import { logger } from "./Logger";
 import { resolveVerifiedJoin } from "./Privilege";
 
@@ -665,9 +666,12 @@ export async function startWorker() {
         // Enforce clan tag ownership: a player can wear a tag only if they're
         // a member; a real clan they're not in (or an unverifiable tag) is
         // dropped to prevent impersonation. Fictional tags pass through.
-        const resolution = privilegeRefresher
-          .get()
-          .resolveClanTag(clanTag, ownedClanTags);
+        const checker = authPolicy().localAccounts
+          ? localCosmeticChecker(
+              new URL(ServerEnv.accountEndpoints().apiBase).origin,
+            )
+          : privilegeRefresher.get();
+        const resolution = checker.resolveClanTag(clanTag, ownedClanTags);
         if (resolution.dropped) {
           log.warn("Dropped clan tag: player is not a member", {
             persistentID: persistentId,
@@ -677,9 +681,10 @@ export async function startWorker() {
         }
         const resolvedClanTag = resolution.tag;
 
-        const cosmeticResult = privilegeRefresher
-          .get()
-          .isAllowed(flares ?? [], clientMsg.cosmetics ?? {});
+        const cosmeticResult = checker.isAllowed(
+          flares ?? [],
+          clientMsg.cosmetics ?? {},
+        );
 
         if (cosmeticResult.type === "forbidden") {
           log.warn(`Forbidden: ${cosmeticResult.reason}`, {

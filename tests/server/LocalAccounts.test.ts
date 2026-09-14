@@ -1,5 +1,13 @@
-import { ServerEnv } from "../../src/server/ServerEnv";
+import { gzipSync } from "node:zlib";
+import { base64urlToUuid } from "../../src/core/Base64";
+import { CosmeticsSchema } from "../../src/core/CosmeticSchemas";
 import { verifyClientToken } from "../../src/server/jwt";
+import {
+  freeCosmeticFlares,
+  localCosmeticChecker,
+} from "../../src/server/LocalCosmetics";
+import { ServerEnv } from "../../src/server/ServerEnv";
+import { completionInfo } from "../fixtures/LocalCompletion";
 // @vitest-environment node
 import express from "express";
 import { decodeJwt, jwtVerify } from "jose";
@@ -89,6 +97,87 @@ async function setup(directory?: string, issuer?: string) {
 }
 
 describe("local accounts", () => {
+  it("saves gzip map completions once per difficulty and retains them across restart", async () => {
+    const api = await setup();
+    const cookie = api.cookie(await api.register());
+    const { jwt } = await (await api.post("/auth/refresh", {}, cookie)).json();
+    const info = completionInfo();
+    info.players[0].persistentID = base64urlToUuid(decodeJwt(jwt).sub!);
+    const save = (authorization = `Bearer ${jwt}`, requestOrigin = origin) =>
+      fetch(api.base + "/archive_singleplayer_game", {
+        method: "POST",
+        headers: {
+          origin: requestOrigin,
+          authorization,
+          "content-type": "application/json",
+          "content-encoding": "gzip",
+        },
+        body: gzipSync(JSON.stringify({ info, turns: [], version: "v0.0.2" })),
+      });
+    expect((await save("")).status).toBe(401);
+    expect(
+      (await save(`Bearer ${jwt}`, "https://wrong.example.test")).status,
+    ).toBe(403);
+    expect(await (await save()).json()).toEqual({ recorded: true });
+    await save();
+    info.config.difficulty = "Hard";
+    await save();
+    info.config.infiniteGold = true;
+    expect(await (await save()).json()).toEqual({ recorded: false });
+    await api.close();
+    const restarted = await setup(api.dir);
+    const profile = await (await restarted.me(jwt)).json();
+    expect(profile.player.achievements.singleplayerMap).toEqual([
+      { mapName: "Viktor", difficulty: "Hard" },
+      { mapName: "Viktor", difficulty: "Medium" },
+    ]);
+    const secondCookie = restarted.cookie(
+      await restarted.register("SecondFriend"),
+    );
+    const secondJwt = (
+      await (await restarted.post("/auth/refresh", {}, secondCookie)).json()
+    ).jwt;
+    expect(
+      (await (await restarted.me(secondJwt)).json()).player.achievements
+        .singleplayerMap,
+    ).toEqual([]);
+  });
+  it("grants the free inventory to accounts and validates flags with the game checker", async () => {
+    const api = await setup();
+    const catalogResponse = await fetch(api.base + "/cosmetics.json");
+    expect(catalogResponse.status).toBe(200);
+    const catalog = CosmeticsSchema.parse(await catalogResponse.json());
+    expect(Object.keys(catalog.flags)).toEqual([
+      "sunrise",
+      "mountain",
+      "comet",
+    ]);
+    const cookie = api.cookie(await api.register());
+    const { jwt } = await (await api.post("/auth/refresh", {}, cookie)).json();
+    const profile = await (await api.me(jwt)).json();
+    expect(profile.player.flares).toEqual(freeCosmeticFlares);
+    const checker = localCosmeticChecker(origin);
+    for (const flag of Object.values(catalog.flags)) {
+      expect(flag.product).toBeNull();
+      const ref = { flag: `flag:${flag.name}` };
+      expect(checker.isAllowed(profile.player.flares, ref)).toEqual({
+        type: "allowed",
+        cosmetics: { flag: flag.url },
+      });
+      expect(checker.isAllowed([], ref).type).toBe("forbidden");
+      const asset = await fetch(api.base + `/cosmetics/flags/${flag.name}.svg`);
+      expect(asset.headers.get("content-type")).toContain("image/svg+xml");
+      expect(await asset.text()).toContain("<svg");
+    }
+    expect(
+      checker.isAllowed(profile.player.flares, { flag: "flag:unowned" }).type,
+    ).toBe("forbidden");
+    await api.close();
+    const restarted = await setup(api.dir);
+    expect((await (await restarted.me(jwt)).json()).player.flares).toEqual(
+      freeCosmeticFlares,
+    );
+  });
   it("keeps the existing server verifier compatible with a custom issuer and logout", async () => {
     const issuer = "https://identity.example.test/issuer";
     const api = await setup(undefined, issuer);

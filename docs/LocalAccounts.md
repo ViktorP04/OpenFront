@@ -1,5 +1,26 @@
 # Accounts for private games
 
+## Single-player completion medals
+
+Sign in, open Single Player, and win with the default settings to save a medal
+for that map and difficulty. Use the existing achievements toggle in the map
+selector to see your progress. Custom maps count when they have default nations;
+maps without nations, modified settings, losses, and quits do not count. Each
+difficulty is recorded separately, and repeat wins do not duplicate medals.
+
+Progress is stored in the account database and survives restarts and device
+changes. New wins refresh the achievement display without signing out. Earlier
+games cannot be recovered automatically. Results are client-reported personal
+progress, not independently replay-verified competitive achievements. They grant
+no currency or cosmetics. Full replay archives are not stored by this endpoint.
+
+Local accounts include three free cosmetic flags: **Sunrise**, **Mountain**, and
+**Comet**. Open **Account → Open inventory → Flags** to equip or unequip one.
+Existing accounts receive the same flags automatically. Inventory grants survive
+server restarts; equipped items use the existing per-account browser storage and
+do not sync between devices. Guests retain the existing free country flags, but
+cannot equip account-only flags. This does not enable purchases or currency.
+
 This fork includes standalone username/password accounts. No Google application,
 email provider, or OpenFront account API is needed. Node.js 22.13 or newer is
 required (the store uses Node's built-in SQLite).
