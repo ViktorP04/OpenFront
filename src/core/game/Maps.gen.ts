@@ -74,6 +74,7 @@ export enum GameMapType {
   Lisbon = "Lisbon", // map-generator/assets/maps/lisbon/info.json
   LosAngeles = "Los Angeles", // map-generator/assets/maps/losangeles/info.json
   Luna = "Luna", // map-generator/assets/maps/luna/info.json
+  Malt = "Malt", // map-generator/assets/maps/malt/info.json
   Manicouagan = "Manicouagan", // map-generator/assets/maps/manicouagan/info.json
   MareNostrum = "Mare Nostrum", // map-generator/assets/maps/marenostrum/info.json
   Mars = "Mars", // map-generator/assets/maps/mars/info.json
@@ -1655,6 +1656,18 @@ export const maps: readonly MapInfo[] = [
     forcedModifiers: ["isWaterNukes:50"],
   },
   {
+    id: "Malt",
+    type: GameMapType.Malt,
+    translationKey: "map.malt",
+    categories: ["fictional"],
+    multiplayerFrequency: 4,
+    ffaFrequency: -1,
+    teamFrequency: -1,
+    specialFrequency: -1,
+    defaultNationCount: 7,
+    themes: ["malt"],
+  },
+  {
     id: "Manicouagan",
     type: GameMapType.Manicouagan,
     translationKey: "map.manicouagan",
@@ -2175,7 +2188,7 @@ export const maps: readonly MapInfo[] = [
     ffaFrequency: -1,
     teamFrequency: -1,
     specialFrequency: -1,
-    defaultNationCount: 0,
+    defaultNationCount: 7,
     themes: ["tpg"],
   },
   {

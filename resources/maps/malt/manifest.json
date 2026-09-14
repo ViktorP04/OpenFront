@@ -1,0 +1,60 @@
+{
+  "categories": ["fictional"],
+  "id": "Malt",
+  "map": {
+    "height": 2000,
+    "num_land_tiles": 2493709,
+    "width": 1880
+  },
+  "map16x": {
+    "height": 500,
+    "num_land_tiles": 154075,
+    "width": 470
+  },
+  "map4x": {
+    "height": 1000,
+    "num_land_tiles": 621077,
+    "width": 940
+  },
+  "multiplayer_frequency": 4,
+  "name": "Malt",
+  "nations": [
+    {
+      "coordinates": [1582, 908],
+      "name": "East Maltear",
+      "strength": 1
+    },
+    {
+      "coordinates": [590, 1126],
+      "name": "Maltnose",
+      "strength": 1
+    },
+    {
+      "coordinates": [895, 1339],
+      "name": "Maltmouth",
+      "strength": 2
+    },
+    {
+      "coordinates": [822, 197],
+      "name": "Maltpanna",
+      "strength": 3
+    },
+    {
+      "coordinates": [299, 809],
+      "name": "Eye-Lands",
+      "strength": 1
+    },
+    {
+      "coordinates": [960, 1836],
+      "name": "Maltneck",
+      "strength": 3
+    },
+    {
+      "coordinates": [840, 1700],
+      "name": "Maltchin",
+      "strength": 1
+    }
+  ],
+  "themes": ["malt"],
+  "translation_key": "map.malt"
+}

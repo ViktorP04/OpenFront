@@ -5,6 +5,41 @@
   "categories": ["fictional"],
   "multiplayer_frequency": 4,
   "nations": [
+    {
+      "coordinates": [1437, 783],
+      "name": "Bullet",
+      "strength": 2
+    },
+    {
+      "coordinates": [1156, 948],
+      "name": "Gun",
+      "strength": 3
+    },
+    {
+      "coordinates": [777, 780],
+      "name": "Mouth",
+      "strength": 1
+    },
+    {
+      "coordinates": [710, 1114],
+      "name": "Shirt",
+      "strength": 3
+    },
+    {
+      "coordinates": [787, 5],
+      "name": "Hair",
+      "strength": 1
+    },
+    {
+      "coordinates": [916, 468],
+      "name": "East Eye",
+      "strength": 2
+    },
+    {
+      "coordinates": [636, 467],
+      "name": "West Eye",
+      "strength": 2
+    }
   ],
   "themes": ["tpg"]
 }
