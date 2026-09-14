@@ -13,6 +13,8 @@ services:
       - "${OPENFRONT_BIND_ADDRESS:-127.0.0.1}:${OPENFRONT_PORT:-8080}:80"
     environment:
       GAME_ENV: prod
+      API_ORIGIN: ${API_ORIGIN:-}
+      AUTH_ISSUER: ${AUTH_ISSUER:-}
       DOMAIN: ${DOMAIN:?Set DOMAIN to the public hostname}
       SITE_HOST: ${SITE_HOST:-${DOMAIN}}
       TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-1x00000000000000000000AA}

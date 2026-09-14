@@ -17,11 +17,12 @@ a username and password. Usernames are case-insensitive, 3–24 letters, numbers
 or underscores; passwords are 12–128 characters. Save your password: email
 verification, Google login, and forgotten-password recovery are not included.
 
-Create a private lobby and use its existing copy-invite button. Friends need an
-account on this same server. Opening an invite while signed out leads to sign-in;
-after signing in or registering, the client returns to the invited lobby.
-Single-player still works without an account. In account mode, hosting and joining
-multiplayer require a signed-in account, including during development.
+Create a private lobby and use its existing copy-invite button. Friends can join
+the invite without an account, including in an incognito window. Guest identity
+is retained in that browser's local storage for reconnects; clearing it or closing
+the incognito session loses that identity. Hosting and joining public games still
+require an account in account mode. Server-wide ALLOWED_FLARES restrictions also
+apply to guests. Single-player still works without an account.
 
 Account settings offer password changes, sign-out, and sign-out on all devices.
 Passwords and sessions survive server restarts. The default store is
@@ -115,3 +116,30 @@ npx vitest run tests/server/LocalAccountLobby.test.ts
 ```
 
 This test targets localhost:9000 with two workers and registration codes disabled.
+
+## Keeping upstream updates manageable
+
+`src/auth/AuthConfig.ts` owns mode policy and endpoint resolution. The server's
+`Authentication.ts` adapter owns token verification and account lookup; `jwt.ts`
+retains the existing exports for upstream callers. SQLite and HTTP routes remain
+in `LocalAccounts.ts`. Gameplay and account UI consume this boundary.
+
+`API_ORIGIN` optionally sets the public API base URL (including a path if needed).
+`AUTH_ISSUER` optionally sets the JWT issuer; it defaults to that API URL. In
+upstream mode the existing `https://api.<DOMAIN>` default remains. Both values
+are injected into the HTML at runtime, so Compose changes require a container
+recreation but no client rebuild. Local/upstream mode itself still requires a
+matching build. Never put credentials in these public configuration values.
+
+For this deployment leave both variables blank: local accounts use
+`https://openfront.viktorp04.com/api/accounts`. The built-in local service uses
+same-origin cookies and must remain at `LOCAL_ACCOUNT_ORIGIN/api/accounts`;
+setting an external API URL does not migrate accounts or enable cross-origin
+local login. Workers access the built-in service over loopback, while JWTs use
+the configured public issuer. Changing the issuer invalidates existing access
+tokens until session refresh.
+
+CI checks API configuration, existing authentication contracts, login/refresh/
+logout, and guest identity isolation. Its production-container test also creates
+a private lobby, joins with accounts and a guest, reconnects the guest, and
+rejects guest/revoked-session hosting. Run these checks after upstream merges.

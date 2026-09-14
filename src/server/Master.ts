@@ -5,6 +5,7 @@ import rateLimit from "express-rate-limit";
 import http from "http";
 import path from "path";
 import { fileURLToPath } from "url";
+import { authPolicy } from "../auth/AuthConfig";
 import { GameEnv } from "../core/configuration/Config";
 import { fetchSiteColor, shouldPollApex } from "./ActiveDeployment";
 import {
@@ -157,7 +158,7 @@ export async function startMaster() {
   }
 
   log.info(`Primary ${process.pid} is running`);
-  if (process.env.LOCAL_ACCOUNTS === "true") {
+  if (authPolicy().localAccounts) {
     const { createLocalAccounts, localAccountOrigin } =
       await import("./LocalAccounts");
     const accounts = await createLocalAccounts({
@@ -165,6 +166,7 @@ export async function startMaster() {
         process.env.LOCAL_ACCOUNT_DATA_DIR ?? path.resolve(".local-accounts"),
       origin: localAccountOrigin(),
       audience: ServerEnv.jwtAudience(),
+      issuer: ServerEnv.jwtIssuer(),
       registrationCode: process.env.LOCAL_ACCOUNT_REGISTRATION_CODE,
     });
     accountRouter.use(accounts.router);
@@ -236,7 +238,7 @@ export async function startMaster() {
   const stateSource = ServerEnv.clusterStateSource();
   if (checkinBody(0) !== null) {
     log.info(
-      `Checking in with ${ServerEnv.jwtIssuer()}/cluster/checkin every ${CHECKIN_INTERVAL_MS / 1000}s (state source: ${stateSource})`,
+      `Checking in with ${ServerEnv.accountApiBase()}/cluster/checkin every ${CHECKIN_INTERVAL_MS / 1000}s (state source: ${stateSource})`,
     );
     startPolling(async () => {
       const body = checkinBody(lobbyService.liveGames());

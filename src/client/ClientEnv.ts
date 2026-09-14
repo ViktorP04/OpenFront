@@ -1,5 +1,6 @@
 import { JWK } from "jose";
 import { z } from "zod";
+import { accountEndpoints, localAccountsEnabled } from "../auth/AuthConfig";
 import { ClusterConfig } from "../core/ClusterConfig";
 import { GameID } from "../core/Schemas";
 import { ServerList } from "../core/ServerList";
@@ -134,6 +135,8 @@ export class ClientEnv {
       numWorkers: bc.numWorkers,
       turnstileSiteKey: bc.turnstileSiteKey,
       jwtAudience: bc.jwtAudience,
+      accountApiBase: bc.accountApiBase,
+      authIssuer: bc.authIssuer,
       // Absent on a static page: only a server that renders the page knows
       // its own instance id. Empty means "none", and callers send it only
       // when it is there (the API ignores it either way).
@@ -200,17 +203,22 @@ export class ClientEnv {
   static gitCommit(): string {
     return ClientEnv.get().gitCommit;
   }
+  static accountEndpoints() {
+    return accountEndpoints({
+      local: localAccountsEnabled(),
+      audience: ClientEnv.jwtAudience(),
+      localOrigin: window.location.origin,
+      apiOrigin: ClientEnv.get().accountApiBase,
+      issuer: ClientEnv.get().authIssuer,
+    });
+  }
   static jwtIssuer(): string {
-    if (process.env.LOCAL_ACCOUNTS === "true")
-      return `${window.location.origin}/api/accounts`;
-    const audience = ClientEnv.jwtAudience();
-    return audience === "localhost"
-      ? "http://localhost:8787"
-      : `https://api.${audience}`;
+    return ClientEnv.accountEndpoints().issuer;
   }
   static async jwkPublicKey(): Promise<JWK> {
     if (ClientEnv.publicKey) return ClientEnv.publicKey;
-    const jwksUrl = ClientEnv.jwtIssuer() + "/.well-known/jwks.json";
+    const jwksUrl =
+      ClientEnv.accountEndpoints().apiBase + "/.well-known/jwks.json";
     console.log(`Fetching JWKS from ${jwksUrl}`);
     const response = await fetch(jwksUrl);
     if (!response.ok) {
@@ -492,6 +500,8 @@ export interface ClientEnvValues {
   numWorkers?: number;
   turnstileSiteKey: string;
   jwtAudience: string;
+  accountApiBase?: string;
+  authIssuer?: string;
   // "" on a static page, which no server rendered.
   instanceId: string;
   gitCommit: string;

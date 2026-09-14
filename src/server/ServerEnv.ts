@@ -1,6 +1,11 @@
 import { JWK } from "jose";
 import { z } from "zod";
 import {
+  accountEndpoints,
+  apiUrl,
+  localAccountsEnabled,
+} from "../auth/AuthConfig";
+import {
   ClusterColor,
   ClusterConfig,
   ClusterConfigSchema,
@@ -81,19 +86,38 @@ export class ServerEnv {
   static cdnBase(): string {
     return process.env.CDN_BASE ?? "";
   }
-  static jwtIssuer(): string {
-    if (process.env.LOCAL_ACCOUNTS === "true") {
-      return `${new URL(process.env.LOCAL_ACCOUNT_ORIGIN ?? "http://localhost:9000").origin}/api/accounts`;
+  static accountEndpoints() {
+    const endpoints = accountEndpoints({
+      local: localAccountsEnabled(),
+      audience: ServerEnv.jwtAudience(),
+      localOrigin: process.env.LOCAL_ACCOUNT_ORIGIN ?? "http://localhost:9000",
+      apiOrigin:
+        (process.env.API_ORIGIN?.trim() ? process.env.API_ORIGIN : undefined) ??
+        (process.env.API_DOMAIN && !localAccountsEnabled()
+          ? `https://${process.env.API_DOMAIN}`
+          : undefined),
+      issuer: process.env.AUTH_ISSUER,
+    });
+    if (
+      localAccountsEnabled() &&
+      endpoints.apiBase !==
+        apiUrl(
+          `${process.env.LOCAL_ACCOUNT_ORIGIN ?? "http://localhost:9000"}/api/accounts`,
+        )
+    ) {
+      throw new Error(
+        "Local accounts require API_ORIGIN to match LOCAL_ACCOUNT_ORIGIN/api/accounts. Leave API_ORIGIN and API_DOMAIN unset to use the default.",
+      );
     }
-    const audience = ServerEnv.jwtAudience();
-    return audience === "localhost"
-      ? "http://localhost:8787"
-      : `https://api.${audience}`;
+    return endpoints;
+  }
+  static jwtIssuer(): string {
+    return ServerEnv.accountEndpoints().issuer;
   }
   static accountApiBase(): string {
-    return process.env.LOCAL_ACCOUNTS === "true"
+    return localAccountsEnabled()
       ? "http://127.0.0.1:3000/api/accounts"
-      : ServerEnv.jwtIssuer();
+      : ServerEnv.accountEndpoints().apiBase;
   }
   static async jwkPublicKey(): Promise<JWK> {
     if (ServerEnv.publicKey) return ServerEnv.publicKey;

@@ -7,6 +7,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { WebSocket, WebSocketServer } from "ws";
 import { z } from "zod";
+import { authPolicy } from "../auth/AuthConfig";
 import { CloseCode, CloseReason } from "../core/CloseCodes";
 import { GameEnv } from "../core/configuration/Config";
 import { GameType } from "../core/game/Game";
@@ -89,9 +90,9 @@ export async function startWorker() {
   }
 
   const privilegeRefresher = new PrivilegeRefresher(
-    ServerEnv.jwtIssuer() + "/cosmetics.json",
+    ServerEnv.accountApiBase() + "/cosmetics.json",
     ServerEnv.apiKey(),
-    ServerEnv.jwtIssuer() + "/reserved_clan_tags",
+    ServerEnv.accountApiBase() + "/reserved_clan_tags",
     log,
   );
   privilegeRefresher.start();
@@ -303,10 +304,7 @@ export async function startWorker() {
 
       // Upstream dev has no subscription backend. Standalone accounts do
       // supply permissions and must enforce them, including during dev.
-      if (
-        ServerEnv.env() !== GameEnv.Dev ||
-        process.env.LOCAL_ACCOUNTS === "true"
-      ) {
+      if (ServerEnv.env() !== GameEnv.Dev || authPolicy().localAccounts) {
         const userMe = await getUserMe(token);
         if (userMe.type === "error") {
           log.warn(
@@ -458,7 +456,11 @@ export async function startWorker() {
         }
 
         // Verify token signature
-        const result = await verifyClientToken(clientMsg.token);
+        const targetGame = gm.game(clientMsg.gameID);
+        const result = await verifyClientToken(
+          clientMsg.token,
+          targetGame !== null && !targetGame.isPublic(),
+        );
         if (result.type === "error") {
           log.warn(`Invalid token: ${result.message}`, {
             gameID: clientMsg.gameID,
@@ -518,7 +520,7 @@ export async function startWorker() {
         let verifySkipped = false;
         if (
           ServerEnv.env() !== GameEnv.Dev &&
-          process.env.LOCAL_ACCOUNTS !== "true"
+          authPolicy().useUpstreamServices
         ) {
           const game = gm.game(clientMsg.gameID);
           const stored = game?.storedIdentity(persistentId) ?? null;
@@ -818,7 +820,7 @@ export async function startWorker() {
 async function startMatchmakingPolling(gm: GameManager) {
   // One checkin serves exactly one queue, so a host serving both modes
   // runs one long-poll loop per mode.
-  if (process.env.LOCAL_ACCOUNTS !== "true") {
+  if (authPolicy().useUpstreamServices) {
     startMatchmakingLoop(gm, "1v1");
     startMatchmakingLoop(gm, "2v2");
   }
@@ -836,7 +838,7 @@ function startMatchmakingLoop(gm: GameManager, mode: "1v1" | "2v2") {
   startPolling(
     async () => {
       try {
-        const url = `${ServerEnv.jwtIssuer() + "/matchmaking/checkin"}`;
+        const url = `${ServerEnv.accountApiBase() + "/matchmaking/checkin"}`;
         const gameId = ServerEnv.generateGameIdForWorker(workerId);
         if (gameId === null) {
           log.warn(`Failed to generate game ID for worker ${workerId}`);

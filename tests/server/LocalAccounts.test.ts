@@ -1,3 +1,5 @@
+import { ServerEnv } from "../../src/server/ServerEnv";
+import { verifyClientToken } from "../../src/server/jwt";
 // @vitest-environment node
 import express from "express";
 import { decodeJwt, jwtVerify } from "jose";
@@ -6,7 +8,7 @@ import type { Server } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { UserMeResponseSchema } from "../../src/core/ApiSchemas";
 import {
   createLocalAccounts,
@@ -18,8 +20,10 @@ const password = "a long test password 123";
 const cleanups: (() => Promise<void> | void)[] = [];
 afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
+  vi.restoreAllMocks();
+  vi.unstubAllEnvs();
 });
-async function setup(directory?: string) {
+async function setup(directory?: string, issuer?: string) {
   const dir =
     directory ?? mkdtempSync(path.join(tmpdir(), "openfront-accounts-"));
   if (!directory)
@@ -35,6 +39,7 @@ async function setup(directory?: string) {
     directory: dir,
     origin,
     audience: "localhost",
+    issuer,
     registrationCode: "friends-only",
   });
   const app = express();
@@ -84,6 +89,36 @@ async function setup(directory?: string) {
 }
 
 describe("local accounts", () => {
+  it("keeps the existing server verifier compatible with a custom issuer and logout", async () => {
+    const issuer = "https://identity.example.test/issuer";
+    const api = await setup(undefined, issuer);
+    vi.stubEnv("LOCAL_ACCOUNTS", "true");
+    vi.spyOn(ServerEnv, "jwtIssuer").mockReturnValue(issuer);
+    vi.spyOn(ServerEnv, "jwtAudience").mockReturnValue("localhost");
+    vi.spyOn(ServerEnv, "accountApiBase").mockReturnValue(api.base);
+    const jwks = await (
+      await fetch(api.base + "/.well-known/jwks.json")
+    ).json();
+    vi.spyOn(ServerEnv, "jwkPublicKey").mockResolvedValue(jwks.keys[0]);
+    await api.register();
+    const login = await api.post("/auth/login", {
+      username: "FriendOne",
+      password,
+    });
+    expect(login.status).toBe(200);
+    const cookie = api.cookie(login);
+    const { jwt } = await (await api.post("/auth/refresh", {}, cookie)).json();
+    expect((await verifyClientToken(jwt)).type).toBe("success");
+    vi.mocked(ServerEnv.jwtIssuer).mockReturnValue(
+      "https://wrong.example.test",
+    );
+    expect((await verifyClientToken(jwt)).type).toBe("error");
+    vi.mocked(ServerEnv.jwtIssuer).mockReturnValue(issuer);
+    await api.post("/auth/logout", {}, cookie);
+    expect((await verifyClientToken(jwt)).type).toBe("error");
+    expect((await api.post("/auth/refresh", {}, cookie)).status).toBe(401);
+  });
+
   it("expires sessions and stores neither passwords nor raw session tokens", async () => {
     const api = await setup();
     const cookie = api.cookie(await api.register());

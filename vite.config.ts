@@ -7,6 +7,7 @@ import { fileURLToPath } from "url";
 import { defineConfig, loadEnv, type Plugin } from "vite";
 import { createHtmlPlugin } from "vite-plugin-html";
 import { configDefaults } from "vitest/config";
+import { accountEndpoints } from "./src/auth/AuthConfig";
 import {
   type AssetManifest,
   buildAssetUrl,
@@ -183,6 +184,32 @@ export default defineConfig(({ mode }) => {
       env.TURNSTILE_SITE_KEY ?? "1x00000000000000000000AA",
     ),
     jwtAudience: JSON.stringify(env.DOMAIN ?? "localhost"),
+    accountApiBase: JSON.stringify(
+      accountEndpoints({
+        local: env.LOCAL_ACCOUNTS === "true",
+        audience: env.DOMAIN ?? "localhost",
+        localOrigin: env.LOCAL_ACCOUNT_ORIGIN ?? "http://localhost:9000",
+        apiOrigin:
+          env.API_ORIGIN ||
+          (env.API_DOMAIN && env.LOCAL_ACCOUNTS !== "true"
+            ? `https://${env.API_DOMAIN}`
+            : undefined),
+        issuer: env.AUTH_ISSUER,
+      }).apiBase,
+    ),
+    authIssuer: JSON.stringify(
+      accountEndpoints({
+        local: env.LOCAL_ACCOUNTS === "true",
+        audience: env.DOMAIN ?? "localhost",
+        localOrigin: env.LOCAL_ACCOUNT_ORIGIN ?? "http://localhost:9000",
+        apiOrigin:
+          env.API_ORIGIN ||
+          (env.API_DOMAIN && env.LOCAL_ACCOUNTS !== "true"
+            ? `https://${env.API_DOMAIN}`
+            : undefined),
+        issuer: env.AUTH_ISSUER,
+      }).issuer,
+    ),
     instanceId: JSON.stringify(env.INSTANCE_ID ?? "DEV_ID"),
     manifestHref: buildAssetUrl("manifest.json", assetManifest, cdnBase),
     faviconHref: buildAssetUrl("images/Favicon.svg", assetManifest, cdnBase),

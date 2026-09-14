@@ -1,3 +1,4 @@
+import { localAccountsEnabled } from "../auth/AuthConfig";
 import { ClientEnv } from "./ClientEnv";
 
 // The account/shop API origin (api.<audience>). Lives apart from Api.ts so
@@ -5,8 +6,8 @@ import { ClientEnv } from "./ClientEnv";
 // import cycle; Api.ts re-exports both for its existing importers.
 
 export function getApiBase() {
-  if (process.env.LOCAL_ACCOUNTS === "true")
-    return `${window.location.origin}/api/accounts`;
+  if (localAccountsEnabled() || window.BOOTSTRAP_CONFIG?.accountApiBase)
+    return ClientEnv.accountEndpoints().apiBase;
   const domainname = getAudience();
 
   if (domainname === "localhost") {

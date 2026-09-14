@@ -89,6 +89,8 @@ export async function renderHtmlContent(
     gameEnv: JSON.stringify(ServerEnv.gameEnvName()),
     turnstileSiteKey: JSON.stringify(ServerEnv.turnstileSiteKey()),
     jwtAudience: JSON.stringify(ServerEnv.jwtAudience()),
+    accountApiBase: JSON.stringify(ServerEnv.accountEndpoints().apiBase),
+    authIssuer: JSON.stringify(ServerEnv.jwtIssuer()),
     manifestHref: buildAssetUrl("manifest.json", assetManifest, cdnBase),
     faviconHref: buildAssetUrl("images/Favicon.svg", assetManifest, cdnBase),
     gameplayScreenshotUrl: buildAssetUrl(

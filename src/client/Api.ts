@@ -1,6 +1,7 @@
 import newsItemsFallback from "resources/news.json";
 import streamsFallback from "resources/streams.json";
 import { z } from "zod";
+import { authPolicy } from "../auth/AuthConfig";
 import type { NewsItem, StreamsFeed } from "../core/ApiSchemas";
 import {
   ClaimAllRewardsResponse,
@@ -1912,7 +1913,7 @@ export async function setLobbyListed(
 // (nginx in prod, the vite dev proxy locally) picks a worker, which mints a
 // self-owned id and returns it.
 export async function createLobby(): Promise<GameInfo> {
-  if (process.env.LOCAL_ACCOUNTS === "true" && !(await userAuth())) {
+  if (authPolicy().requireAccountToHost && !(await userAuth())) {
     window.location.hash = "modal=account";
     throw new Error("Sign in before creating a private lobby.");
   }

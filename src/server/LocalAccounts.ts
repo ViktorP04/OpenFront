@@ -62,6 +62,7 @@ export async function createLocalAccounts(options: {
   directory: string;
   origin: string;
   audience: string;
+  issuer?: string;
   registrationCode?: string;
 }) {
   mkdirSync(options.directory, { recursive: true, mode: 0o700 });
@@ -86,7 +87,7 @@ export async function createLocalAccounts(options: {
   const jwk = JSON.parse(stored.value) as JWK;
   const signingKey = await importJWK(jwk, "EdDSA");
   const publicKey: JWK = { kty: jwk.kty, crv: jwk.crv, x: jwk.x, alg: "EdDSA" };
-  const issuer = `${options.origin}/api/accounts`;
+  const issuer = options.issuer ?? `${options.origin}/api/accounts`;
   const secure = options.origin.startsWith("https:");
   const cookieName = secure
     ? "__Secure-openfront_session"
@@ -130,11 +131,9 @@ export async function createLocalAccounts(options: {
       !["GET", "HEAD"].includes(req.method) &&
       req.get("origin") !== options.origin
     ) {
-      res
-        .status(403)
-        .json({
-          error: "Open the game at its configured address before signing in.",
-        });
+      res.status(403).json({
+        error: "Open the game at its configured address before signing in.",
+      });
       return;
     }
     next();
@@ -200,12 +199,10 @@ export async function createLocalAccounts(options: {
     router.post(`/auth/${action}`, async (req, res) => {
       const parsed = credentials.safeParse(req.body);
       if (!parsed.success) {
-        res
-          .status(400)
-          .json({
-            error:
-              "Use a 3–24 character username (letters, numbers, underscore) and a 12–128 character password.",
-          });
+        res.status(400).json({
+          error:
+            "Use a 3–24 character username (letters, numbers, underscore) and a 12–128 character password.",
+        });
         return;
       }
       const { username, password, registrationCode } = parsed.data;

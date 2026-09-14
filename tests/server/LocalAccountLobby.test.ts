@@ -11,7 +11,7 @@ import {
 } from "../../src/core/ZbinWire";
 
 it.skipIf(process.env.LOCAL_ACCOUNT_SMOKE_TEST !== "true")(
-  "two accounts join an invite, guests and revoked sessions cannot host",
+  "accounts and guests join an invite, guests and revoked sessions cannot host",
   async () => {
     const origin = "http://localhost:9000";
     async function account() {
@@ -33,6 +33,7 @@ it.skipIf(process.env.LOCAL_ACCOUNT_SMOKE_TEST !== "true")(
       expect(response.status).toBe(200);
       return { username, cookie, jwt: (await response.json()).jwt as string };
     }
+    const gitCommit = process.env.LOCAL_ACCOUNT_SMOKE_COMMIT ?? "DEV";
     const host = await account();
     const friend = await account();
     const create = (token: string) =>
@@ -72,7 +73,7 @@ it.skipIf(process.env.LOCAL_ACCOUNT_SMOKE_TEST !== "true")(
                 username: user.username,
                 clanTag: null,
                 turnstileToken: null,
-                gitCommit: "DEV",
+                gitCommit,
               },
               undefined,
             ),
@@ -97,10 +98,18 @@ it.skipIf(process.env.LOCAL_ACCOUNT_SMOKE_TEST !== "true")(
     try {
       await join(host);
       await join(friend);
+      const guest = { username: "Guest", cookie: "", jwt: randomUUID() };
+      await join(guest);
+      const guestSocket = sockets[sockets.length - 1];
+      await new Promise<void>((resolve) => {
+        guestSocket.once("close", () => resolve());
+        guestSocket.close();
+      });
+      await join(guest); // Refresh/reconnect must retain a single guest player.
       const info = await (
         await fetch(`${origin}/w${worker}/api/game/${gameID}`)
       ).json();
-      expect(info.clients).toHaveLength(2);
+      expect(info.clients).toHaveLength(3);
       await fetch(origin + "/api/accounts/auth/logout", {
         method: "POST",
         headers: { origin, cookie: host.cookie },

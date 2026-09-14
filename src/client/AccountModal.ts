@@ -1,6 +1,7 @@
 import { html, nothing, TemplateResult } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import { ClientEnv } from "src/client/ClientEnv";
+import { authPolicy } from "../auth/AuthConfig";
 import { PlayerStatsTree, UserMeResponse } from "../core/ApiSchemas";
 import { assetUrl } from "../core/AssetUrls";
 import { hasLinkedIdentity } from "./AccountIdentity";
@@ -132,7 +133,7 @@ export class AccountModal extends BaseModal {
       onBack: () => this.close(),
       ariaLabel: translateText("common.back"),
       rightContent:
-        process.env.LOCAL_ACCOUNTS !== "true" &&
+        authPolicy().useUpstreamServices &&
         isLoggedIn &&
         !this.isLoadingUser &&
         publicId
@@ -159,7 +160,7 @@ export class AccountModal extends BaseModal {
   }
 
   protected modalConfig() {
-    if (process.env.LOCAL_ACCOUNTS === "true") return {};
+    if (authPolicy().localAccounts) return {};
     if (this.isLoadingUser || !this.isLinkedAccount()) {
       return {};
     }
@@ -174,7 +175,7 @@ export class AccountModal extends BaseModal {
   }
 
   protected renderBody(tab: string) {
-    if (process.env.LOCAL_ACCOUNTS === "true") {
+    if (authPolicy().localAccounts) {
       return html`<local-account-panel
         .username=${this.userMeResponse?.user.local?.username ?? ""}
       ></local-account-panel>`;
@@ -946,7 +947,7 @@ export class AccountModal extends BaseModal {
   }
 
   private async loadPlayerProfile(publicId: string): Promise<void> {
-    if (process.env.LOCAL_ACCOUNTS === "true") return;
+    if (authPolicy().localAccounts) return;
     try {
       const data = await fetchPlayerById(publicId);
       if (!data) {
