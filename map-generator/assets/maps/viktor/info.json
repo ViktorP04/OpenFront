@@ -1,0 +1,71 @@
+{
+  "id": "Viktor",
+  "name": "Viktor",
+  "translation_key": "map.viktor",
+  "categories": ["fictional"],
+  "multiplayer_frequency": 4,
+  "mapInfoState": {
+    "width": 2000,
+    "height": 2432,
+    "originalWidth": 2000,
+    "originalHeight": 2432,
+    "cropData": {
+      "isCropped": false,
+      "cropX": 0,
+      "cropY": 0,
+      "cropWidth": 0,
+      "cropHeight": 0,
+      "originalWidth": 0,
+      "originalHeight": 0
+    },
+    "colorMappings": []
+  },
+  "nations": [
+    {
+      "coordinates": [707, 1655],
+      "name": "Right Eye",
+      "strength": 3
+    },
+    {
+      "coordinates": [1326, 1406],
+      "name": "Left Eye",
+      "strength": 1
+    },
+    {
+      "coordinates": [1057, 1938],
+      "name": "Nose",
+      "strength": 2
+    },
+    {
+      "coordinates": [1899, 1121],
+      "name": "Left Ear",
+      "strength": 1
+    },
+    {
+      "coordinates": [669, 991],
+      "name": "Forehead",
+      "strength": 2
+    },
+    {
+      "coordinates": [1386, 2034],
+      "name": "Mouth",
+      "strength": 1
+    },
+    {
+      "coordinates": [594, 256],
+      "name": "Hair",
+      "strength": 2
+    },
+    {
+      "coordinates": [388, 1905],
+      "name": "Glasses",
+      "strength": 1
+    },
+    {
+      "coordinates": [279, 986],
+      "name": "Bald Spot",
+      "strength": 1
+    }
+  ],
+  "themes": ["viktor"]
+}

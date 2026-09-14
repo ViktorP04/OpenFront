@@ -113,11 +113,13 @@ export enum GameMapType {
   Tourney2 = "Tourney 3 Teams", // map-generator/assets/maps/tourney2/info.json
   Tourney3 = "Tourney 4 Teams", // map-generator/assets/maps/tourney3/info.json
   Tourney4 = "Tourney 8 Teams", // map-generator/assets/maps/tourney4/info.json
+  TPG = "TPG", // map-generator/assets/maps/tpg/info.json
   TradersDream = "Traders Dream", // map-generator/assets/maps/tradersdream/info.json
   TwoLakes = "Two Lakes", // map-generator/assets/maps/twolakes/info.json
   UnitedStates = "United States", // map-generator/assets/maps/unitedstates/info.json
   Venice = "Venice", // map-generator/assets/maps/venice/info.json
   Vietnam = "Vietnam", // map-generator/assets/maps/vietnam/info.json
+  Viktor = "Viktor", // map-generator/assets/maps/viktor/info.json
   WarshipWarship = "Warship Warship", // map-generator/assets/maps/warshipwarship/info.json
   World = "World", // map-generator/assets/maps/world/info.json
   WorldInverted = "World Inverted", // map-generator/assets/maps/worldinverted/info.json
@@ -2165,6 +2167,18 @@ export const maps: readonly MapInfo[] = [
     defaultNationCount: 8,
   },
   {
+    id: "TPG",
+    type: GameMapType.TPG,
+    translationKey: "map.tpg",
+    categories: ["fictional"],
+    multiplayerFrequency: 4,
+    ffaFrequency: -1,
+    teamFrequency: -1,
+    specialFrequency: -1,
+    defaultNationCount: 0,
+    themes: ["tpg"],
+  },
+  {
     id: "TradersDream",
     type: GameMapType.TradersDream,
     translationKey: "map.tradersdream",
@@ -2224,6 +2238,18 @@ export const maps: readonly MapInfo[] = [
     defaultNationCount: 15,
     specialTeamCount: 2,
     themes: ["asia"],
+  },
+  {
+    id: "Viktor",
+    type: GameMapType.Viktor,
+    translationKey: "map.viktor",
+    categories: ["fictional"],
+    multiplayerFrequency: 4,
+    ffaFrequency: -1,
+    teamFrequency: -1,
+    specialFrequency: -1,
+    defaultNationCount: 9,
+    themes: ["viktor"],
   },
   {
     id: "WarshipWarship",

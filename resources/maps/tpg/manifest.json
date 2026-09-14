@@ -1,0 +1,24 @@
+{
+  "categories": ["fictional"],
+  "id": "TPG",
+  "map": {
+    "height": 1124,
+    "num_land_tiles": 650988,
+    "width": 1500
+  },
+  "map16x": {
+    "height": 281,
+    "num_land_tiles": 39727,
+    "width": 375
+  },
+  "map4x": {
+    "height": 562,
+    "num_land_tiles": 161522,
+    "width": 750
+  },
+  "multiplayer_frequency": 4,
+  "name": "TPG",
+  "nations": [],
+  "themes": ["tpg"],
+  "translation_key": "map.tpg"
+}

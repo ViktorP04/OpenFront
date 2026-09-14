@@ -1,0 +1,10 @@
+{
+  "id": "TPG",
+  "name": "TPG",
+  "translation_key": "map.tpg",
+  "categories": ["fictional"],
+  "multiplayer_frequency": 4,
+  "nations": [
+  ],
+  "themes": ["tpg"]
+}

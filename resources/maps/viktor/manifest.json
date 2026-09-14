@@ -1,0 +1,86 @@
+{
+  "categories": ["fictional"],
+  "id": "Viktor",
+  "map": {
+    "height": 2432,
+    "num_land_tiles": 3301944,
+    "width": 2000
+  },
+  "map16x": {
+    "height": 608,
+    "num_land_tiles": 204748,
+    "width": 500
+  },
+  "map4x": {
+    "height": 1216,
+    "num_land_tiles": 822352,
+    "width": 1000
+  },
+  "mapInfoState": {
+    "colorMappings": [],
+    "cropData": {
+      "cropHeight": 0,
+      "cropWidth": 0,
+      "cropX": 0,
+      "cropY": 0,
+      "isCropped": false,
+      "originalHeight": 0,
+      "originalWidth": 0
+    },
+    "height": 2432,
+    "originalHeight": 2432,
+    "originalWidth": 2000,
+    "width": 2000
+  },
+  "multiplayer_frequency": 4,
+  "name": "Viktor",
+  "nations": [
+    {
+      "coordinates": [707, 1655],
+      "name": "Right Eye",
+      "strength": 3
+    },
+    {
+      "coordinates": [1326, 1406],
+      "name": "Left Eye",
+      "strength": 1
+    },
+    {
+      "coordinates": [1057, 1938],
+      "name": "Nose",
+      "strength": 2
+    },
+    {
+      "coordinates": [1899, 1121],
+      "name": "Left Ear",
+      "strength": 1
+    },
+    {
+      "coordinates": [669, 991],
+      "name": "Forehead",
+      "strength": 2
+    },
+    {
+      "coordinates": [1386, 2034],
+      "name": "Mouth",
+      "strength": 1
+    },
+    {
+      "coordinates": [594, 256],
+      "name": "Hair",
+      "strength": 2
+    },
+    {
+      "coordinates": [388, 1905],
+      "name": "Glasses",
+      "strength": 1
+    },
+    {
+      "coordinates": [279, 986],
+      "name": "Bald Spot",
+      "strength": 1
+    }
+  ],
+  "themes": ["viktor"],
+  "translation_key": "map.viktor"
+}
