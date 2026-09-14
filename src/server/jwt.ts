@@ -22,7 +22,10 @@ export async function verifyClientToken(
   token: string,
 ): Promise<TokenVerificationResult> {
   if (PersistentIdSchema.safeParse(token).success) {
-    if (ServerEnv.env() === GameEnv.Dev) {
+    if (
+      ServerEnv.env() === GameEnv.Dev &&
+      process.env.LOCAL_ACCOUNTS !== "true"
+    ) {
       return { type: "success", persistentId: token, claims: null };
     } else {
       return {
@@ -48,6 +51,15 @@ export async function verifyClientToken(
       };
     }
     const claims = result.data;
+    if (
+      process.env.LOCAL_ACCOUNTS === "true" &&
+      (await getUserMe(token)).type === "error"
+    ) {
+      return {
+        type: "error",
+        message: "Account session expired or revoked. Sign in again.",
+      };
+    }
     const persistentId = claims.sub;
     return { type: "success", persistentId, claims };
   } catch (e) {
@@ -70,7 +82,8 @@ export async function getUserMe(
 > {
   try {
     // Get the user object
-    const response = await fetch(ServerEnv.jwtIssuer() + "/users/@me", {
+    const response = await fetch(ServerEnv.accountApiBase() + "/users/@me", {
+      signal: AbortSignal.timeout(5000),
       headers: {
         authorization: `Bearer ${token}`,
         "x-api-key": ServerEnv.apiKey(),

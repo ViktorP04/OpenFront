@@ -5,6 +5,8 @@ import { ClientEnv } from "./ClientEnv";
 // import cycle; Api.ts re-exports both for its existing importers.
 
 export function getApiBase() {
+  if (process.env.LOCAL_ACCOUNTS === "true")
+    return `${window.location.origin}/api/accounts`;
   const domainname = getAudience();
 
   if (domainname === "localhost") {

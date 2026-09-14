@@ -339,6 +339,9 @@ export default defineConfig(({ mode }) => {
       "process.env.API_DOMAIN": JSON.stringify(
         mode === "test" ? "" : (env.API_DOMAIN ?? ""),
       ),
+      "process.env.LOCAL_ACCOUNTS": JSON.stringify(
+        mode === "test" ? "false" : (env.LOCAL_ACCOUNTS ?? "false"),
+      ),
       // Add other process.env variables if needed, OR migrate code to import.meta.env
     },
 
@@ -360,6 +363,11 @@ export default defineConfig(({ mode }) => {
 
     server: {
       port: 9000,
+      strictPort: env.LOCAL_ACCOUNTS === "true",
+      allowedHosts:
+        env.LOCAL_ACCOUNTS === "true" && env.LOCAL_ACCOUNT_ORIGIN
+          ? [new URL(env.LOCAL_ACCOUNT_ORIGIN).hostname]
+          : undefined,
       host: process.env.VITE_HOST === "lan",
       // Automatically open the browser when the server starts
       open: process.env.SKIP_BROWSER_OPEN !== "true",

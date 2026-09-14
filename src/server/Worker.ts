@@ -301,9 +301,12 @@ export async function startWorker() {
         return res.status(409).json({ error: "listing_host_cheats_enabled" });
       }
 
-      // Dev has no subscription backend; skip the check so the feature is
-      // testable locally (same precedent as Turnstile).
-      if (ServerEnv.env() !== GameEnv.Dev) {
+      // Upstream dev has no subscription backend. Standalone accounts do
+      // supply permissions and must enforce them, including during dev.
+      if (
+        ServerEnv.env() !== GameEnv.Dev ||
+        process.env.LOCAL_ACCOUNTS === "true"
+      ) {
         const userMe = await getUserMe(token);
         if (userMe.type === "error") {
           log.warn(
@@ -513,7 +516,10 @@ export async function startWorker() {
         // API. Runs before the rejoin attempt so a pre-start identity
         // change on refresh is screened before it is applied.
         let verifySkipped = false;
-        if (ServerEnv.env() !== GameEnv.Dev) {
+        if (
+          ServerEnv.env() !== GameEnv.Dev &&
+          process.env.LOCAL_ACCOUNTS !== "true"
+        ) {
           const game = gm.game(clientMsg.gameID);
           const stored = game?.storedIdentity(persistentId) ?? null;
           const isReadmit = game?.wasAdmitted(persistentId) ?? false;
@@ -812,8 +818,10 @@ export async function startWorker() {
 async function startMatchmakingPolling(gm: GameManager) {
   // One checkin serves exactly one queue, so a host serving both modes
   // runs one long-poll loop per mode.
-  startMatchmakingLoop(gm, "1v1");
-  startMatchmakingLoop(gm, "2v2");
+  if (process.env.LOCAL_ACCOUNTS !== "true") {
+    startMatchmakingLoop(gm, "1v1");
+    startMatchmakingLoop(gm, "2v2");
+  }
 }
 
 const MatchmakingAssignmentSchema = z.object({

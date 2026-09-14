@@ -1,0 +1,49 @@
+services:
+  openfront:
+    build:
+      context: .
+      args:
+        GIT_COMMIT: ${GIT_COMMIT:-unknown}
+        STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY:-}
+        LOCAL_ACCOUNTS: "true"
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
+    ports:
+      - "${OPENFRONT_BIND_ADDRESS:-127.0.0.1}:${OPENFRONT_PORT:-8080}:80"
+    environment:
+      GAME_ENV: prod
+      DOMAIN: ${DOMAIN:?Set DOMAIN to the public hostname}
+      SITE_HOST: ${SITE_HOST:-${DOMAIN}}
+      TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-1x00000000000000000000AA}
+      CLUSTER_JSON: ${CLUSTER_JSON:?Set CLUSTER_JSON with an entry for DOMAIN}
+      API_KEY: ${API_KEY:-}
+      ADMIN_BOT_API_KEY: ${ADMIN_BOT_API_KEY:-}
+      GIT_COMMIT: ${GIT_COMMIT:-unknown}
+      CDN_BASE: ${CDN_BASE:-}
+      ALLOWED_FLARES: ${ALLOWED_FLARES:-}
+      LOCAL_ACCOUNTS: "true"
+      LOCAL_ACCOUNT_ORIGIN: ${LOCAL_ACCOUNT_ORIGIN:-https://${DOMAIN}}
+      LOCAL_ACCOUNT_DATA_DIR: /data/accounts
+      LOCAL_ACCOUNT_REGISTRATION_CODE: ${LOCAL_ACCOUNT_REGISTRATION_CODE:-}
+    volumes:
+      - accounts:/data/accounts
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "curl",
+          "--fail",
+          "--max-time",
+          "4",
+          "http://127.0.0.1/api/health",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 45s
+
+volumes:
+  accounts:
+    # Stable across repository checkout paths and Komodo project renames.
+    name: ${OPENFRONT_ACCOUNTS_VOLUME:-openfront-accounts}

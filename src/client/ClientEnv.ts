@@ -201,6 +201,8 @@ export class ClientEnv {
     return ClientEnv.get().gitCommit;
   }
   static jwtIssuer(): string {
+    if (process.env.LOCAL_ACCOUNTS === "true")
+      return `${window.location.origin}/api/accounts`;
     const audience = ClientEnv.jwtAudience();
     return audience === "localhost"
       ? "http://localhost:8787"

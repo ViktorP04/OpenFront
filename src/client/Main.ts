@@ -419,7 +419,9 @@ class Client {
     // so rendering the widget there alerts and rejects — and replays never
     // send a token anyway (see getTurnstileToken below).
     this.turnstileTokenPromise =
-      isDesktopShell() || isReplayShellHost(window.location.hostname)
+      process.env.LOCAL_ACCOUNTS === "true" ||
+      isDesktopShell() ||
+      isReplayShellHost(window.location.hostname)
         ? null
         : getTurnstileToken();
 
@@ -1220,6 +1222,15 @@ class Client {
 
   private async handleJoinLobby(event: CustomEvent<JoinLobbyEvent>) {
     const lobby = event.detail;
+    if (
+      process.env.LOCAL_ACCOUNTS === "true" &&
+      joinIsGateable(lobby) &&
+      !(await userAuth())
+    ) {
+      sessionStorage.setItem("local-account-invite", lobby.gameID);
+      window.location.hash = "modal=account";
+      return;
+    }
     if (this.usernameInput && !this.usernameInput.canPlay()) {
       return;
     }
@@ -1700,6 +1711,7 @@ class Client {
   ): Promise<string | null> {
     if (
       ClientEnv.env() === GameEnv.Dev ||
+      process.env.LOCAL_ACCOUNTS === "true" ||
       isDesktopShell() ||
       // Single-player and replays: no server to verify a token against (and
       // on the CDN replay shells Turnstile cannot load at all). Shared with

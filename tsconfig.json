@@ -30,6 +30,7 @@
     "generated/**/*",
     "tests/**/*",
     "src/scripts",
+    "scripts/verifyMapAssets.ts",
     "vite.config.ts"
   ],
   "exclude": ["node_modules"]

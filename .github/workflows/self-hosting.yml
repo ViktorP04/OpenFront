@@ -1,0 +1,44 @@
+name: Self-hosting deployment
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  container:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm run inst
+      - run: npm run verify:maps
+      - run: npx vitest run tests/server/LocalAccounts.test.ts tests/client/LocalAccountPanel.test.ts tests/DeploySmoke.test.ts
+      - run: docker compose --env-file .env.example config --quiet
+      - name: Build production account image
+        run: docker build --build-arg LOCAL_ACCOUNTS=true --build-arg GIT_COMMIT="$GITHUB_SHA" -t openfront-selfhost-test .
+      - name: Start with a fresh account volume
+        run: |
+          docker run -d --name openfront-selfhost-test -p 127.0.0.1:9000:80 \
+            -v openfront-selfhost-test:/data/accounts \
+            -e GAME_ENV=prod -e DOMAIN=localhost \
+            -e 'CLUSTER_JSON={"a":{"host":"localhost","color":"blue","numWorkers":2}}' \
+            -e LOCAL_ACCOUNTS=true -e LOCAL_ACCOUNT_ORIGIN=http://localhost:9000 \
+            -e LOCAL_ACCOUNT_DATA_DIR=/data/accounts \
+            -e TURNSTILE_SITE_KEY=1x00000000000000000000AA \
+            openfront-selfhost-test
+      - name: Verify the deployed image
+        run: node scripts/deploySmoke.mjs http://localhost:9000 --expect-commit "$GITHUB_SHA" --attempts 12
+      - name: Container logs
+        if: always()
+        run: docker logs --tail 150 openfront-selfhost-test || true
+      - name: Remove test container and volume
+        if: always()
+        run: |
+          docker rm -f openfront-selfhost-test || true
+          docker volume rm openfront-selfhost-test || true

@@ -151,6 +151,7 @@ export function isVerifiedUsername(
 
 export const UserMeResponseSchema = z.object({
   user: z.object({
+    local: z.object({ username: z.string() }).optional(),
     discord: DiscordUserSchema.optional(),
     google: GoogleUserSchema.optional(),
     email: z.string().optional(),

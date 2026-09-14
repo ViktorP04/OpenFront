@@ -8,6 +8,9 @@ TODO.txt
 resources/images/.DS_Store
 resources/.DS_Store
 .env*
+!.env.example
+.local-accounts/
+deploy/revision.txt
 .DS_Store
 .clinic/
 NOTES.md

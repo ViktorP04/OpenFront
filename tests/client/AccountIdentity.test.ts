@@ -29,6 +29,7 @@ describe("isSteamPrimaryUser", () => {
     ["steam + discord", { steam, discord }, false],
     ["steam + google", { steam, google }, false],
     ["steam + email", { steam, email }, false],
+    ["steam + local", { steam, local: { username: "Friend" } }, false],
     ["no steam", { discord }, false],
     ["undefined user", undefined, false],
   ])("%s -> %s", (_name, user, expected) => {
@@ -42,6 +43,7 @@ describe("hasLinkedIdentity", () => {
     ["google", { google }, true],
     ["steam", { steam }, true],
     ["email", { email }, true],
+    ["local", { local: { username: "Friend" } }, true],
     // The case that motivated extracting this: an empty-string `email` must
     // not mask a real identity. A `??` chain gets this right only while
     // `email` happens to be ordered last.

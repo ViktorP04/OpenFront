@@ -7,7 +7,9 @@ import type { UserMeResponse } from "../core/ApiSchemas";
 export function isSteamPrimaryUser(
   user: UserMeResponse["user"] | undefined,
 ): boolean {
-  return !!user?.steam && !user.discord && !user.google && !user.email;
+  return (
+    !!user?.steam && !user.discord && !user.google && !user.email && !user.local
+  );
 }
 
 // Does this user have any linked identity at all? (Callers that also accept a
@@ -25,6 +27,7 @@ export function hasLinkedIdentity(
 ): boolean {
   if (user === undefined) return false;
   return (
+    user.local !== undefined ||
     user.discord !== undefined ||
     user.google !== undefined ||
     user.steam !== undefined ||

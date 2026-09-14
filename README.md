@@ -78,6 +78,14 @@ This will:
 - Launch the game server with development settings
 - Open the game in your default browser (to disable this behavior, set `SKIP_BROWSER_OPEN=true` in your environment)
 
+### Standalone accounts for this fork
+
+Run `npm run dev:accounts` for username/password accounts and private games with
+friends. See [Accounts for private games](docs/LocalAccounts.md) for setup,
+invite links, HTTPS hosting, registration codes, and backups.
+
+For the production Docker/Komodo stack, see the [self-hosting deployment guide](deploy/README.md).
+
 ### Client Only
 
 To run just the client with hot reloading:

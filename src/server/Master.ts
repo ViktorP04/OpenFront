@@ -34,6 +34,8 @@ const log = logger.child({ comp: "m" });
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const accountRouter = express.Router();
+app.use("/api/accounts", accountRouter);
 app.use(express.json());
 
 // Serve the shared app shell for the root document.
@@ -155,6 +157,18 @@ export async function startMaster() {
   }
 
   log.info(`Primary ${process.pid} is running`);
+  if (process.env.LOCAL_ACCOUNTS === "true") {
+    const { createLocalAccounts, localAccountOrigin } =
+      await import("./LocalAccounts");
+    const accounts = await createLocalAccounts({
+      directory:
+        process.env.LOCAL_ACCOUNT_DATA_DIR ?? path.resolve(".local-accounts"),
+      origin: localAccountOrigin(),
+      audience: ServerEnv.jwtAudience(),
+      registrationCode: process.env.LOCAL_ACCOUNT_REGISTRATION_CODE,
+    });
+    accountRouter.use(accounts.router);
+  }
   log.info(`Setting up ${ServerEnv.numWorkers()} workers...`);
 
   lobbyService = new MasterLobbyService(playlist, log);

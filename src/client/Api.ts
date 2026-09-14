@@ -1912,6 +1912,10 @@ export async function setLobbyListed(
 // (nginx in prod, the vite dev proxy locally) picks a worker, which mints a
 // self-owned id and returns it.
 export async function createLobby(): Promise<GameInfo> {
+  if (process.env.LOCAL_ACCOUNTS === "true" && !(await userAuth())) {
+    window.location.hash = "modal=account";
+    throw new Error("Sign in before creating a private lobby.");
+  }
   // A new game needs a server that takes new games on this build: ask the
   // API (multi-server v2), falling back to the page's own server. When the
   // list says nothing runs this build any more, creating against the page's

@@ -10,6 +10,15 @@ LICENSE
 Makefile
 helm-charts
 .env*
+.local-accounts
+.worktrees
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+**/*.sqlite
+**/*.sqlite-wal
+**/*.sqlite-shm
+.npmrc
 .editorconfig
 .idea
 coverage*

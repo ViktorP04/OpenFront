@@ -26,6 +26,7 @@ COPY zbin ./zbin
 # ERR_MODULE_NOT_FOUND -- the unit suite cannot catch it, because only the
 # container build runs build-prod from a copied tree.
 COPY scripts ./scripts
+COPY deploy ./deploy
 
 ARG GIT_COMMIT=unknown
 ENV GIT_COMMIT="$GIT_COMMIT"
@@ -34,7 +35,10 @@ ENV GIT_COMMIT="$GIT_COMMIT"
 # and every purchase degrades to the redirect flow.
 ARG STRIPE_PUBLISHABLE_KEY=""
 ENV STRIPE_PUBLISHABLE_KEY="$STRIPE_PUBLISHABLE_KEY"
-RUN npm run build-prod
+# Standalone account UI is selected at build time; enable it at runtime too.
+ARG LOCAL_ACCOUNTS=false
+ENV LOCAL_ACCOUNTS="$LOCAL_ACCOUNTS"
+RUN sh deploy/build.sh
 
 # Production dependencies stage - separate from build
 FROM base AS prod-deps
@@ -88,21 +92,7 @@ COPY src ./src
 COPY zbin ./zbin
 
 
-ARG GIT_COMMIT=unknown
-RUN echo "$GIT_COMMIT" > static/commit.txt
-
-ENV GIT_COMMIT="$GIT_COMMIT"
-
-RUN <<'EOF' tee /usr/local/bin/start.sh
-#!/bin/sh
-# Generate the create-game nginx upstream from CLUSTER_JSON before nginx starts.
-/usr/local/bin/generate-nginx-upstream.sh
-
-if [ "$DOMAIN" = openfront.dev ] && [ "$SUBDOMAIN" != main ]; then
-    exec timeout 25h /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
-else
-    exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
-fi
-EOF
+COPY scripts/deploySmoke.mjs ./scripts/deploySmoke.mjs
+COPY deploy/start.sh /usr/local/bin/start.sh
 RUN chmod +x /usr/local/bin/start.sh
 ENTRYPOINT ["/usr/local/bin/start.sh"]

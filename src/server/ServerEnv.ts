@@ -82,14 +82,22 @@ export class ServerEnv {
     return process.env.CDN_BASE ?? "";
   }
   static jwtIssuer(): string {
+    if (process.env.LOCAL_ACCOUNTS === "true") {
+      return `${new URL(process.env.LOCAL_ACCOUNT_ORIGIN ?? "http://localhost:9000").origin}/api/accounts`;
+    }
     const audience = ServerEnv.jwtAudience();
     return audience === "localhost"
       ? "http://localhost:8787"
       : `https://api.${audience}`;
   }
+  static accountApiBase(): string {
+    return process.env.LOCAL_ACCOUNTS === "true"
+      ? "http://127.0.0.1:3000/api/accounts"
+      : ServerEnv.jwtIssuer();
+  }
   static async jwkPublicKey(): Promise<JWK> {
     if (ServerEnv.publicKey) return ServerEnv.publicKey;
-    const jwksUrl = ServerEnv.jwtIssuer() + "/.well-known/jwks.json";
+    const jwksUrl = ServerEnv.accountApiBase() + "/.well-known/jwks.json";
     console.log(`Fetching JWKS from ${jwksUrl}`);
     const response = await fetch(jwksUrl);
     if (!response.ok) {

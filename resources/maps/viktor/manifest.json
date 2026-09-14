@@ -2,19 +2,19 @@
   "categories": ["fictional"],
   "id": "Viktor",
   "map": {
-    "height": 2432,
-    "num_land_tiles": 3301944,
-    "width": 2000
+    "height": 2000,
+    "num_land_tiles": 2229112,
+    "width": 1644
   },
   "map16x": {
-    "height": 608,
-    "num_land_tiles": 204748,
-    "width": 500
+    "height": 500,
+    "num_land_tiles": 138257,
+    "width": 411
   },
   "map4x": {
-    "height": 1216,
-    "num_land_tiles": 822352,
-    "width": 1000
+    "height": 1000,
+    "num_land_tiles": 555965,
+    "width": 822
   },
   "mapInfoState": {
     "colorMappings": [],
@@ -36,22 +36,22 @@
   "name": "Viktor",
   "nations": [
     {
-      "coordinates": [707, 1655],
+      "coordinates": [580, 1357],
       "name": "Right Eye",
       "strength": 3
     },
     {
-      "coordinates": [1326, 1406],
+      "coordinates": [1096, 1155],
       "name": "Left Eye",
       "strength": 1
     },
     {
-      "coordinates": [1057, 1938],
+      "coordinates": [865, 1586],
       "name": "Nose",
       "strength": 2
     },
     {
-      "coordinates": [1899, 1121],
+      "coordinates": [1564, 954],
       "name": "Left Ear",
       "strength": 1
     },
@@ -61,22 +61,22 @@
       "strength": 2
     },
     {
-      "coordinates": [1386, 2034],
+      "coordinates": [1072, 1771],
       "name": "Mouth",
       "strength": 1
     },
     {
-      "coordinates": [594, 256],
+      "coordinates": [852, 129],
       "name": "Hair",
       "strength": 2
     },
     {
-      "coordinates": [388, 1905],
+      "coordinates": [320, 1563],
       "name": "Glasses",
       "strength": 1
     },
     {
-      "coordinates": [279, 986],
+      "coordinates": [237, 744],
       "name": "Bald Spot",
       "strength": 1
     }

@@ -28,6 +28,7 @@ import type { CreatorChangedDetail } from "./components/CreatorCodePanel";
 import "./components/CurrencyDisplay";
 import "./components/Difficulties";
 import "./components/FriendsList";
+import "./components/LocalAccountPanel";
 import "./components/RewardsPanel";
 import type { RewardsChangedDetail } from "./components/RewardsPanel";
 import { googleLinkButton } from "./components/ui/GoogleLinkButton";
@@ -131,7 +132,10 @@ export class AccountModal extends BaseModal {
       onBack: () => this.close(),
       ariaLabel: translateText("common.back"),
       rightContent:
-        isLoggedIn && !this.isLoadingUser && publicId
+        process.env.LOCAL_ACCOUNTS !== "true" &&
+        isLoggedIn &&
+        !this.isLoadingUser &&
+        publicId
           ? html`
               <copy-button
                 class="shrink-0"
@@ -155,6 +159,7 @@ export class AccountModal extends BaseModal {
   }
 
   protected modalConfig() {
+    if (process.env.LOCAL_ACCOUNTS === "true") return {};
     if (this.isLoadingUser || !this.isLinkedAccount()) {
       return {};
     }
@@ -169,6 +174,11 @@ export class AccountModal extends BaseModal {
   }
 
   protected renderBody(tab: string) {
+    if (process.env.LOCAL_ACCOUNTS === "true") {
+      return html`<local-account-panel
+        .username=${this.userMeResponse?.user.local?.username ?? ""}
+      ></local-account-panel>`;
+    }
     if (this.isLoadingUser) {
       return this.renderLoadingSpinner(
         translateText("account_modal.fetching_account"),
@@ -936,6 +946,7 @@ export class AccountModal extends BaseModal {
   }
 
   private async loadPlayerProfile(publicId: string): Promise<void> {
+    if (process.env.LOCAL_ACCOUNTS === "true") return;
     try {
       const data = await fetchPlayerById(publicId);
       if (!data) {
