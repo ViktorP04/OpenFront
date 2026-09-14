@@ -8,7 +8,7 @@ ENV HUSKY=0
 # Copy package files first for better caching
 COPY package*.json ./
 RUN --mount=type=cache,target=/root/.npm \
-    npm ci
+    npm run inst
 
 # Copy only what's needed for build
 COPY tsconfig.json ./
