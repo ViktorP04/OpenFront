@@ -138,7 +138,7 @@
         turnstileSiteKey: <%- turnstileSiteKey %>,
         accountApiBase: <%- typeof accountApiBase !== "undefined" ? accountApiBase : "undefined" %>,
         authIssuer: <%- typeof authIssuer !== "undefined" ? authIssuer : "undefined" %>,
-        jwtAudience: <%- jwtAudience %>,<%- typeof instanceId !== "undefined" && instanceId ? "\n        instanceId: " + instanceId + "," : "" %><%- typeof serverHost !== "undefined" && serverHost ? "\n        serverHost: " + serverHost + "," : "" %><%- typeof siteHost !== "undefined" && siteHost ? "\n        siteHost: " + siteHost + "," : "" %>
+        jwtAudience: <%- jwtAudience %>,<%- typeof stripePublishableKey !== "undefined" && stripePublishableKey ? "\n        stripePublishableKey: " + stripePublishableKey + "," : "" %><%- typeof instanceId !== "undefined" && instanceId ? "\n        instanceId: " + instanceId + "," : "" %><%- typeof serverHost !== "undefined" && serverHost ? "\n        serverHost: " + serverHost + "," : "" %><%- typeof siteHost !== "undefined" && siteHost ? "\n        siteHost: " + siteHost + "," : "" %>
       };
       document.documentElement.style.setProperty(
         "--background-image-url",

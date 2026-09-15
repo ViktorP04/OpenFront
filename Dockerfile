@@ -30,12 +30,7 @@ COPY deploy ./deploy
 
 ARG GIT_COMMIT=unknown
 ENV GIT_COMMIT="$GIT_COMMIT"
-# Baked into the client bundle by a Vite define at build time (see
-# vite.config.ts). Empty is valid: it disables the inline wallet/card flow
-# and every purchase degrades to the redirect flow.
-ARG STRIPE_PUBLISHABLE_KEY=""
-ENV STRIPE_PUBLISHABLE_KEY="$STRIPE_PUBLISHABLE_KEY"
-# Standalone account UI is selected at build time; enable it at runtime too.
+# Standalone account UI must match the runtime mode.
 ARG LOCAL_ACCOUNTS=false
 ENV LOCAL_ACCOUNTS="$LOCAL_ACCOUNTS"
 RUN sh deploy/build.sh

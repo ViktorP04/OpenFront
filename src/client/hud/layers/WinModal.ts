@@ -23,6 +23,7 @@ import {
   resolveCosmetics,
 } from "../../Cosmetics";
 import { crazyGamesSDK } from "../../CrazyGamesSDK";
+import { PlaySoundEffectEvent } from "../../sound/Sounds";
 import { steamSDK } from "../../SteamSDK";
 import { SendWinnerEvent } from "../../Transport";
 import { GameView } from "../../view";
@@ -166,7 +167,9 @@ export class WinModal extends LitElement implements Controller {
         <div
           class="mx-auto w-full overflow-x-auto overflow-y-visible rounded-sm"
         >
-          <div class="flex min-w-max items-start justify-start gap-4 px-1 py-1">
+          <div
+            class="flex min-w-max items-start justify-center gap-4 px-1 py-1"
+          >
             ${this.patternContent}
           </div>
         </div>
@@ -307,6 +310,7 @@ export class WinModal extends LitElement implements Controller {
     ) {
       this.hasShownDeathModal = true;
       this._title = translateText("win_modal.died");
+      this.eventBus.emit(new PlaySoundEffectEvent("defeat"));
       this.show();
     }
     const updates = this.game.updatesSinceLastTick();
@@ -333,6 +337,7 @@ export class WinModal extends LitElement implements Controller {
           });
           this.isWin = false;
         }
+        this.playEndOfGameSound();
         history.replaceState(null, "", `${window.location.pathname}?replay`);
         this.show();
       } else if (wu.winner[0] === "nation") {
@@ -341,6 +346,7 @@ export class WinModal extends LitElement implements Controller {
           nation: wu.winner[1],
         });
         this.isWin = false;
+        this.playEndOfGameSound();
         this.show();
       } else {
         const winner = this.game.playerByClientID(wu.winner[1]);
@@ -364,9 +370,21 @@ export class WinModal extends LitElement implements Controller {
           });
           this.isWin = false;
         }
+        this.playEndOfGameSound();
         history.replaceState(null, "", `${window.location.pathname}?replay`);
         this.show();
       }
     });
+  }
+
+  private playEndOfGameSound(): void {
+    if (this.isWin) {
+      this.eventBus.emit(new PlaySoundEffectEvent("victory"));
+    } else if (!this.hasShownDeathModal && this.game.myPlayer()?.hasSpawned()) {
+      // Spawned check: spectators and replay viewers shouldn't get a
+      // personal defeat sting. The cue also already played if the player
+      // died earlier (hasShownDeathModal).
+      this.eventBus.emit(new PlaySoundEffectEvent("defeat"));
+    }
   }
 }

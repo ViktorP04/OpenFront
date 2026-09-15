@@ -91,6 +91,13 @@ export async function renderHtmlContent(
     jwtAudience: JSON.stringify(ServerEnv.jwtAudience()),
     accountApiBase: JSON.stringify(ServerEnv.accountEndpoints().apiBase),
     authIssuer: JSON.stringify(ServerEnv.jwtIssuer()),
+    // Environment-scoped like the two above (so the static per-version page
+    // carries it too), but optional: absent when the deployment has no key,
+    // and the guarded template line then drops out entirely.
+    stripePublishableKey:
+      ServerEnv.stripePublishableKey() === undefined
+        ? undefined
+        : JSON.stringify(ServerEnv.stripePublishableKey()),
     manifestHref: buildAssetUrl("manifest.json", assetManifest, cdnBase),
     faviconHref: buildAssetUrl("images/Favicon.svg", assetManifest, cdnBase),
     gameplayScreenshotUrl: buildAssetUrl(

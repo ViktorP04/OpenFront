@@ -4,7 +4,6 @@ services:
       context: .
       args:
         GIT_COMMIT: ${GIT_COMMIT:-unknown}
-        STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY:-}
         LOCAL_ACCOUNTS: "true"
     restart: unless-stopped
     init: true
@@ -13,6 +12,7 @@ services:
       - "${OPENFRONT_BIND_ADDRESS:-127.0.0.1}:${OPENFRONT_PORT:-8080}:80"
     environment:
       GAME_ENV: prod
+      STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY:-}
       API_ORIGIN: ${API_ORIGIN:-}
       AUTH_ISSUER: ${AUTH_ISSUER:-}
       DOMAIN: ${DOMAIN:?Set DOMAIN to the public hostname}
