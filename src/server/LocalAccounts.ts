@@ -18,6 +18,7 @@ import { UserMeResponseSchema } from "../core/ApiSchemas";
 import { uuidToBase64url } from "../core/Base64";
 import { eligibleCompletion } from "./LocalAchievements";
 import { freeCosmeticFlares, localCosmetics } from "./LocalCosmetics";
+import { LocalEconomy, LocalMatchRewardSchema } from "./LocalEconomy";
 
 const credentials = z.object({
   username: z
@@ -67,6 +68,7 @@ export async function createLocalAccounts(options: {
   audience: string;
   issuer?: string;
   registrationCode?: string;
+  rewardKey?: string;
 }) {
   mkdirSync(options.directory, { recursive: true, mode: 0o700 });
   const db = new DatabaseSync(path.join(options.directory, "accounts.sqlite"));
@@ -82,6 +84,7 @@ export async function createLocalAccounts(options: {
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       map_name TEXT NOT NULL, difficulty TEXT NOT NULL,
       PRIMARY KEY (user_id, map_name, difficulty));`);
+  const economy = new LocalEconomy(db);
   let stored = db
     .prepare("SELECT value FROM settings WHERE key='signingKey'")
     .get() as { value: string } | undefined;
@@ -145,6 +148,34 @@ export async function createLocalAccounts(options: {
     res.set("Cache-Control", "no-store");
     next();
   });
+  // Machine-only route: authenticate before parsing; never accept account JWTs
+  // or an Origin header as authority to mint currency.
+  router.post(
+    "/internal/match-rewards",
+    (req, res, next) => {
+      if (
+        !options.rewardKey ||
+        !timingSafeEqual(
+          Buffer.from(hash(req.get("X-Local-Reward-Key") ?? "")),
+          Buffer.from(hash(options.rewardKey)),
+        )
+      ) {
+        res.status(403).json({ error: "Forbidden" });
+        return;
+      }
+      next();
+    },
+    express.json({ limit: "128kb" }),
+    (req, res) => {
+      const parsed = LocalMatchRewardSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: "Invalid match reward" });
+        return;
+      }
+      economy.award(parsed.data);
+      res.json({ ok: true });
+    },
+  );
   router.use((req, res, next) => {
     if (
       !["GET", "HEAD"].includes(req.method) &&
@@ -427,6 +458,38 @@ export async function createLocalAccounts(options: {
       res.json({ recorded: completion !== null });
     });
   });
+  router.post("/shop/purchase", async (req, res) => {
+    const session = await bearerSession(req);
+    if (!session) {
+      res.status(401).json({ error: "Sign in to purchase cosmetics." });
+      return;
+    }
+    const parsed = z
+      .object({
+        cosmeticType: z.literal("flag"),
+        cosmeticName: z.string().max(32),
+        currencyType: z.literal("soft"),
+      })
+      .strict()
+      .safeParse(req.body);
+    if (!parsed.success) {
+      res
+        .status(400)
+        .json({ error: "Only Caps flag purchases are supported." });
+      return;
+    }
+    const result = economy.purchase(session.user_id, parsed.data.cosmeticName);
+    if (result === "insufficient") {
+      res.status(400).json({ reason: "Insufficient balance" });
+    } else if (result === "unknown") {
+      res.status(404).json({ error: "Cosmetic not found" });
+    } else {
+      // Retries of an already-owned purchase succeed without another debit.
+      res.json({
+        currency: { soft: economy.balance(session.user_id), hard: 0 },
+      });
+    }
+  });
   router.get("/users/@me", async (req, res) => {
     const session = await bearerSession(req);
     if (!session) {
@@ -441,7 +504,9 @@ export async function createLocalAccounts(options: {
         user: { local: { username: user.username } },
         player: {
           publicId: hash(user.id),
-          flares: freeCosmeticFlares,
+          flares: [...freeCosmeticFlares, ...economy.flares(user.id)],
+          currency: { soft: economy.balance(user.id), hard: 0 },
+          rewards: [],
           username: user.username,
           adfree: true,
           unlimitedRanked: false,

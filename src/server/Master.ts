@@ -159,6 +159,7 @@ export async function startMaster() {
 
   log.info(`Primary ${process.pid} is running`);
   if (authPolicy().localAccounts) {
+    process.env.LOCAL_REWARD_KEY = crypto.randomBytes(32).toString("hex");
     const { createLocalAccounts, localAccountOrigin } =
       await import("./LocalAccounts");
     const accounts = await createLocalAccounts({
@@ -168,6 +169,7 @@ export async function startMaster() {
       audience: ServerEnv.jwtAudience(),
       issuer: ServerEnv.jwtIssuer(),
       registrationCode: process.env.LOCAL_ACCOUNT_REGISTRATION_CODE,
+      rewardKey: process.env.LOCAL_REWARD_KEY,
     });
     accountRouter.use(accounts.router);
   }

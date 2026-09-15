@@ -49,6 +49,7 @@ async function setup(directory?: string, issuer?: string) {
     audience: "localhost",
     issuer,
     registrationCode: "friends-only",
+    rewardKey: "test-only-reward-key",
   });
   const app = express();
   app.use("/api/accounts", accounts.router);
@@ -96,7 +97,96 @@ async function setup(directory?: string, issuer?: string) {
   return { dir, base, post, register, me, cookie, close };
 }
 
-describe("local accounts", () => {
+// Real scrypt and restart checks need headroom when the full suite shares CPU.
+describe("local accounts", { timeout: 15000 }, () => {
+  it("secures match credits, caps rewards, and persists atomic cosmetic purchases", async () => {
+    const api = await setup();
+    const cookie = api.cookie(await api.register());
+    const { jwt } = await (await api.post("/auth/refresh", {}, cookie)).json();
+    const cookie2 = api.cookie(await api.register("FriendTwo"));
+    const { jwt: jwt2 } = await (
+      await api.post("/auth/refresh", {}, cookie2)
+    ).json();
+    const userId = base64urlToUuid(decodeJwt(jwt).sub!);
+    const otherId = base64urlToUuid(decodeJwt(jwt2).sub!);
+    const submit = (gameId: string, key = "test-only-reward-key") =>
+      fetch(api.base + "/internal/match-rewards", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-local-reward-key": key,
+          origin,
+          authorization: `Bearer ${jwt}`,
+        },
+        body: JSON.stringify({
+          gameId,
+          players: [
+            { userId, seconds: 300, won: true },
+            { userId: otherId, seconds: 300, won: false },
+          ],
+        }),
+      });
+    const purchase = (
+      name: string,
+      extra = {},
+      token = jwt,
+      requestOrigin = origin,
+    ) =>
+      fetch(api.base + "/shop/purchase", {
+        method: "POST",
+        headers: {
+          origin: requestOrigin,
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          cosmeticType: "flag",
+          cosmeticName: name,
+          currencyType: "soft",
+          ...extra,
+        }),
+      });
+    expect((await submit("match001", "")).status).toBe(403);
+    expect((await purchase("crescent", {}, "")).status).toBe(401);
+    expect(
+      (await purchase("crescent", {}, jwt, "https://evil.test")).status,
+    ).toBe(403);
+    expect((await purchase("crescent")).status).toBe(400);
+    for (let i = 1; i <= 5; i++)
+      expect((await submit(`match00${i}`)).status).toBe(200);
+    expect((await submit("match001")).status).toBe(200);
+    expect((await (await api.me(jwt)).json()).player.currency.soft).toBe(100);
+    expect((await (await api.me(jwt2)).json()).player.currency.soft).toBe(50);
+    expect((await purchase("crescent", { priceSoft: 0 })).status).toBe(400);
+    expect((await purchase("crescent", { currencyType: "hard" })).status).toBe(
+      400,
+    );
+    expect((await purchase("unknown")).status).toBe(404);
+    const responses = await Promise.all([
+      purchase("crescent"),
+      purchase("crescent"),
+      purchase("aurora"),
+    ]);
+    expect(responses.map((r) => r.status)).toEqual([200, 200, 400]);
+    const profile = UserMeResponseSchema.parse(
+      await (await api.me(jwt)).json(),
+    );
+    expect(profile.player.currency).toEqual({ soft: 0, hard: 0 });
+    expect(profile.player.flares).toEqual([
+      ...freeCosmeticFlares,
+      "flag:crescent",
+    ]);
+    expect(
+      localCosmeticChecker(origin).isAllowed(profile.player.flares ?? [], {
+        flag: "flag:crescent",
+      }).type,
+    ).toBe("allowed");
+    await api.close();
+    const restarted = await setup(api.dir);
+    const persisted = await (await restarted.me(jwt)).json();
+    expect(persisted.player.currency.soft).toBe(0);
+    expect(persisted.player.flares).toContain("flag:crescent");
+  });
   it("saves gzip map completions once per difficulty and retains them across restart", async () => {
     const api = await setup();
     const cookie = api.cookie(await api.register());
@@ -151,6 +241,9 @@ describe("local accounts", () => {
       "sunrise",
       "mountain",
       "comet",
+      "crescent",
+      "aurora",
+      "violet_crown",
     ]);
     const cookie = api.cookie(await api.register());
     const { jwt } = await (await api.post("/auth/refresh", {}, cookie)).json();
@@ -160,10 +253,14 @@ describe("local accounts", () => {
     for (const flag of Object.values(catalog.flags)) {
       expect(flag.product).toBeNull();
       const ref = { flag: `flag:${flag.name}` };
-      expect(checker.isAllowed(profile.player.flares, ref)).toEqual({
-        type: "allowed",
-        cosmetics: { flag: flag.url },
-      });
+      expect(checker.isAllowed(profile.player.flares, ref)).toMatchObject(
+        flag.priceSoft
+          ? { type: "forbidden" }
+          : {
+              type: "allowed",
+              cosmetics: { flag: flag.url },
+            },
+      );
       expect(checker.isAllowed([], ref).type).toBe("forbidden");
       const asset = await fetch(api.base + `/cosmetics/flags/${flag.name}.svg`);
       expect(asset.headers.get("content-type")).toContain("image/svg+xml");

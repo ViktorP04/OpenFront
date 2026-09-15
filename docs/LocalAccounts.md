@@ -19,7 +19,42 @@ Local accounts include three free cosmetic flags: **Sunrise**, **Mountain**, and
 Existing accounts receive the same flags automatically. Inventory grants survive
 server restarts; equipped items use the existing per-account browser storage and
 do not sync between devices. Guests retain the existing free country flags, but
-cannot equip account-only flags. This does not enable purchases or currency.
+cannot equip account-only flags.
+
+## Caps and the cosmetic shop
+
+Open **Account → Caps shop**, or **Inventory → Store**. Signed-in players earn
+10 Caps for eligible multiplayer participation, plus 15 for winning. Rewards
+are credited automatically after a match has a decided winner. Reopen the shop
+to refresh the balance. Caps unlock Crescent (100), Aurora (200), and Violet Crown
+(300) flags; the original three flags remain free. Caps have no cash value and
+cannot be bought, traded, or transferred. Premium shop tabs are hidden locally.
+
+At least two distinct local accounts must each have five minutes of connected
+participation in the match. Private lobbies count, including custom maps. Guests,
+spectators, kicked or desynced players, unfinished matches, and singleplayer earn
+nothing. Games using infinite gold/troops, instant building, host cheats, custom
+starting gold, or a gold multiplier do not qualify. Paused time is not counted.
+The earning limit is 100 Caps per account per UTC day; spending does not reset it.
+
+Wallets, a transaction ledger, processed match IDs, and cosmetic ownership live
+in the existing account SQLite database. Tables are created automatically on
+startup, without changing accounts or medals. Back up the same account volume.
+Duplicate match reports cannot credit twice, and purchases debit and grant
+ownership in one transaction. Prices and amounts come from the server catalog.
+
+The master generates an internal reward credential at startup and passes it to
+its workers. No new Komodo secrets or services are required. Keep the existing
+account volume and rebuild/recreate the application. The internal reward route
+does not accept account JWTs as permission to mint currency. Worker submissions
+have bounded retries; persistent delivery failures are logged. There is no
+durable retry queue, so a server/service failure can lose an unrecorded reward.
+
+Winners still use upstream's client-vote consensus, not an independent server
+simulation. Connected participation is not proof of active play; daily limits
+bound ordinary farming, but multiple accounts or cooperating players can still
+farm cosmetics. This is a small community economy, not a competitive anti-cheat
+system. Existing singleplayer medals intentionally grant no Caps.
 
 This fork includes standalone username/password accounts. No Google application,
 email provider, or OpenFront account API is needed. Node.js 22.13 or newer is
@@ -114,7 +149,7 @@ the build argument; restarting an old image is insufficient.
   a proxy the limit is shared by the group (40 credential requests per 15 minutes).
 - This is a single-master account service. Do not run multiple independent
   masters against the same store. External account features such as ranked
-  matchmaking, purchases, persistent game statistics, and the friends directory
+  matchmaking, real-money purchases, persistent game statistics, and the friends directory
   are not implemented; invite links use the existing private-lobby system.
 
 The password hashing uses [Node's crypto API](https://nodejs.org/api/crypto.html).

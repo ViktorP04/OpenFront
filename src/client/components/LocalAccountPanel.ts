@@ -88,9 +88,13 @@ export class LocalAccountPanel extends LitElement {
         ? html`
             <p class="text-sm text-white/70">
               Your account includes three free flags: Sunrise, Mountain, and
-              Comet. Equip them in Inventory. Your selection is saved in this
+              Comet. Earn Caps in multiplayer matches to unlock more flags in
+              the shop. Equip them in Inventory. Your selection is saved in this
               browser.
             </p>
+            <a class=${buttonClass} href="#modal=store&tab=cosmetics"
+              >Caps shop</a
+            >
             <a class=${buttonClass} href="#modal=inventory&tab=flags"
               >Open inventory</a
             >

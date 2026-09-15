@@ -4,6 +4,7 @@ import { Logger } from "winston";
 import WebSocket from "ws";
 import { z } from "zod";
 import { ZbContext } from "../../zbin";
+import { localAccountsEnabled } from "../auth/AuthConfig";
 import { isAdminRole } from "../core/ApiSchemas";
 import { CloseCode, CloseReason } from "../core/CloseCodes";
 import { GameEnv } from "../core/configuration/Config";
@@ -64,6 +65,8 @@ import {
   IntentOutcome,
 } from "./IntentAuthorization";
 import { ListingState } from "./ListingState";
+import { capsEligibleConfig } from "./LocalEconomy";
+import { sendLocalMatchReward } from "./LocalMatchRewards";
 import { identityFor, MatchTelemetryRecorder } from "./MatchTelemetryRecorder";
 import { friendsLookup, NameVisibility } from "./NameVisibility";
 import { Roster } from "./Roster";
@@ -199,6 +202,9 @@ export class GameServer {
 
   // Note: This can be undefined if accessed before the game starts.
   private gameStartInfo!: GameStartInfo;
+  private readonly capsParticipation = new Map<string, number>();
+  private capsLastSample = 0;
+  private capsDisqualified = false;
   // Wire-only copy of gameStartInfo sent to clients. Identical to
   // gameStartInfo unless disableClanTags is set, in which case clan tags
   // are stripped from players. Archive uses the original gameStartInfo.
@@ -319,6 +325,8 @@ export class GameServer {
 
   public updateGameConfig(gameConfig: Partial<GameConfig>): void {
     applyGameConfigPatch(this.gameConfig, gameConfig);
+    if (this.gameStartInfo)
+      this.capsDisqualified ||= !capsEligibleConfig(this.gameConfig);
   }
 
   // Dispatch a control/gameplay intent from either a websocket client or the
@@ -418,6 +426,7 @@ export class GameServer {
           this.addIntent(stamped);
           this.endTurn();
           this.paused = true;
+          this.capsLastSample = 0;
         } else {
           this.paused = false;
           this.addIntent(stamped);
@@ -1688,6 +1697,29 @@ export class GameServer {
     }
 
     const now = Date.now();
+    if (localAccountsEnabled() && this.gameStartInfo && this._startTime) {
+      // Bound each sample so a paused/stalled worker never credits the gap.
+      const gap = now - this.capsLastSample;
+      const elapsed = this.capsLastSample && gap >= 0 && gap <= 1000 ? gap : 0;
+      this.capsLastSample = now;
+      this.capsDisqualified ||= !capsEligibleConfig(this.gameConfig);
+      for (const player of this.gameStartInfo.players) {
+        const client = this.clients.get(player.clientID);
+        if (
+          client?.claims?.provider === "local" &&
+          !client.spectator &&
+          client.ws.readyState === WebSocket.OPEN &&
+          !this.isClientDisconnected(client.clientID) &&
+          !this.isKicked(client.clientID) &&
+          now - client.lastPing < this.disconnectedTimeout
+        ) {
+          this.capsParticipation.set(
+            player.clientID,
+            (this.capsParticipation.get(player.clientID) ?? 0) + elapsed,
+          );
+        }
+      }
+    }
     for (const [clientID, client] of this.clients.all()) {
       const isDisconnected = this.isClientDisconnected(clientID);
       if (!isDisconnected && now - client.lastPing > this.disconnectedTimeout) {
@@ -1721,6 +1753,43 @@ export class GameServer {
 
   private archiveGame() {
     const winner = this.winnerVote.winner();
+    if (
+      localAccountsEnabled() &&
+      winner?.winner &&
+      !this.capsDisqualified &&
+      capsEligibleConfig(this.gameConfig) &&
+      capsEligibleConfig(this.gameStartInfo.config)
+    ) {
+      const winningIds =
+        winner.winner[0] === "player"
+          ? [winner.winner[1]]
+          : winner.winner[0] === "team"
+            ? winner.winner.slice(2)
+            : [];
+      const players = this.gameStartInfo.players.flatMap((player) => {
+        const client = this.clients.get(player.clientID);
+        if (
+          client?.claims?.provider !== "local" ||
+          this.isKicked(player.clientID) ||
+          this.desync.isDesynced(player.clientID)
+        )
+          return [];
+        return [
+          {
+            userId: client.persistentID,
+            seconds: Math.min(
+              86400,
+              Math.floor(
+                (this.capsParticipation.get(player.clientID) ?? 0) / 1000,
+              ),
+            ),
+            won: winningIds.includes(player.clientID),
+          },
+        ];
+      });
+      if (players.length >= 2)
+        void sendLocalMatchReward({ gameId: this.id, players });
+    }
     this.log.info("archiving game", {
       gameID: this.id,
       winner: winner?.winner,

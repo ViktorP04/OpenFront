@@ -1,5 +1,7 @@
 import { nothing, type LitElement } from "lit";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import * as AuthConfig from "../../src/auth/AuthConfig";
+import * as CosmeticsApi from "../../src/client/Cosmetics";
 import {
   fetchCosmetics,
   purchaseCosmetic,
@@ -11,6 +13,7 @@ import type { StoreModal } from "../../src/client/Store";
 import type { CosmeticCard } from "../../src/client/components/CosmeticCard";
 import type { EffectsGrid } from "../../src/client/components/EffectsGrid";
 import type { PurchaseButton } from "../../src/client/components/PurchaseButton";
+import type { UserMeResponse } from "../../src/core/ApiSchemas";
 import type { Cosmetics, Effect } from "../../src/core/CosmeticSchemas";
 import {
   EFFECTS_KEY,
@@ -345,6 +348,41 @@ describe("StoreModal cosmetic browser", () => {
     store?.remove();
     store = undefined;
     localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  it("shows the local Caps shop even for premium-tab links and refreshes its wallet", async () => {
+    vi.spyOn(AuthConfig, "localAccountsEnabled").mockReturnValue(true);
+    const refresh = vi
+      .spyOn(CosmeticsApi, "broadcastFreshUserMe")
+      .mockResolvedValue({
+        user: { local: { username: "Friend" } },
+        player: { currency: { soft: 100, hard: 0 }, flares: [] },
+      } as unknown as UserMeResponse);
+    const modal = await openStoreOnTab("packs");
+    expect(refresh).toHaveBeenCalled();
+    expect(modal.querySelectorAll("cosmetic-card")).toHaveLength(1);
+    expect(card(modal, flag.key)).toBeTruthy();
+    expect(modal.querySelector("custom-currency-card")).toBeNull();
+    expect(modal.querySelector("tribes-panel")).toBeNull();
+    const wallet = modal.querySelector("currency-display") as HTMLElement & {
+      hard: number | null;
+      soft: number;
+    };
+    expect(wallet.soft).toBe(100);
+    expect(wallet.hard).toBeNull();
+    expect(modal.textContent).toContain("100 Caps per day");
+    const purchase = modal.querySelector("purchase-button") as PurchaseButton;
+    expect(purchase.priceSoft).toBe(500);
+    expect(purchase.priceHard).toBeNull();
+    purchase.requestCurrencyPurchase("soft");
+    await purchase.updateComplete;
+    purchase
+      .querySelector("confirm-dialog")!
+      .dispatchEvent(new CustomEvent("confirm"));
+    await vi.waitFor(() =>
+      expect(purchaseCosmetic).toHaveBeenCalledWith(flag, "soft"),
+    );
   });
 
   it("selects the first visible item and purchases the selected variant", async () => {
