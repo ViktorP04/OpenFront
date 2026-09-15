@@ -16,6 +16,7 @@ import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { UserMeResponseSchema } from "../core/ApiSchemas";
 import { uuidToBase64url } from "../core/Base64";
+import { GameConfigSchema, ID } from "../core/Schemas";
 import { eligibleCompletion } from "./LocalAchievements";
 import { freeCosmeticFlares, localCosmetics } from "./LocalCosmetics";
 import { LocalEconomy, LocalMatchRewardSchema } from "./LocalEconomy";
@@ -144,6 +145,19 @@ export async function createLocalAccounts(options: {
       ),
     ),
   );
+  for (const category of ["crowns", "skins"]) {
+    router.use(
+      `/cosmetics/${category}`,
+      express.static(
+        fileURLToPath(
+          new URL(
+            `../../resources/local-cosmetics/${category}/`,
+            import.meta.url,
+          ),
+        ),
+      ),
+    );
+  }
   router.use((_req, res, next) => {
     res.set("Cache-Control", "no-store");
     next();
@@ -430,6 +444,27 @@ export async function createLocalAccounts(options: {
     }
     res.clearCookie(cookieName, cookieOptions).json({ ok: true });
   });
+  router.post("/rewards/solo/start", async (req, res) => {
+    const session = await bearerSession(req);
+    if (!session) {
+      res.status(401).json({ error: "Sign in to earn Caps." });
+      return;
+    }
+    const parsed = z
+      .object({ gameId: ID, config: GameConfigSchema })
+      .safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid game start." });
+      return;
+    }
+    res.json({
+      eligible: economy.startSolo(
+        session.user_id,
+        parsed.data.gameId,
+        parsed.data.config,
+      ),
+    });
+  });
   router.post("/archive_singleplayer_game", async (req, res, next) => {
     const session = await bearerSession(req);
     if (!session) {
@@ -455,7 +490,8 @@ export async function createLocalAccounts(options: {
       }
       // Accept non-winning/custom games without awarding a medal. Replay bodies
       // are deliberately not retained by this personal-progress endpoint.
-      res.json({ recorded: completion !== null });
+      const capsAwarded = economy.finishSolo(session.user_id, req.body?.info);
+      res.json({ recorded: completion !== null, capsAwarded });
     });
   });
   router.post("/shop/purchase", async (req, res) => {
@@ -466,19 +502,25 @@ export async function createLocalAccounts(options: {
     }
     const parsed = z
       .object({
-        cosmeticType: z.literal("flag"),
+        cosmeticType: z.enum(["flag", "pattern", "skin", "crown", "effect"]),
         cosmeticName: z.string().max(32),
         currencyType: z.literal("soft"),
+        colorPaletteName: z.string().min(1).max(32).optional(),
       })
       .strict()
       .safeParse(req.body);
     if (!parsed.success) {
       res
         .status(400)
-        .json({ error: "Only Caps flag purchases are supported." });
+        .json({ error: "Only Caps cosmetic purchases are supported." });
       return;
     }
-    const result = economy.purchase(session.user_id, parsed.data.cosmeticName);
+    const result = economy.purchase(
+      session.user_id,
+      parsed.data.cosmeticName,
+      parsed.data.cosmeticType,
+      parsed.data.colorPaletteName,
+    );
     if (result === "insufficient") {
       res.status(400).json({ reason: "Insufficient balance" });
     } else if (result === "unknown") {

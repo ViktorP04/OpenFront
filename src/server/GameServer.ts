@@ -1755,6 +1755,7 @@ export class GameServer {
     const winner = this.winnerVote.winner();
     if (
       localAccountsEnabled() &&
+      this.gameConfig.gameType !== GameType.Singleplayer &&
       winner?.winner &&
       !this.capsDisqualified &&
       capsEligibleConfig(this.gameConfig) &&
@@ -1787,8 +1788,21 @@ export class GameServer {
           },
         ];
       });
-      if (players.length >= 2)
-        void sendLocalMatchReward({ gameId: this.id, players });
+      const c = this.gameStartInfo.config;
+      const hasOpponents =
+        this.gameStartInfo.players.length > 1 ||
+        c.bots > 0 ||
+        (c.nations === "default"
+          ? (maps.find((m) => m.type === c.gameMap)?.defaultNationCount ?? 0) >
+            0
+          : Number(c.nations) > 0);
+      if (players.length >= 1 && hasOpponents)
+        void sendLocalMatchReward({
+          gameId: this.id,
+          players,
+          gameType: this.gameConfig.gameType,
+          difficulty: c.difficulty,
+        });
     }
     this.log.info("archiving game", {
       gameID: this.id,

@@ -2,7 +2,7 @@
 import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { localAccountsEnabled } from "../../src/auth/AuthConfig";
-import { GameType } from "../../src/core/game/Game";
+import { Difficulty, GameType } from "../../src/core/game/Game";
 import type { ClientMessage, GameConfig } from "../../src/core/Schemas";
 import { capsEligibleConfig } from "../../src/server/LocalEconomy";
 import { sendLocalMatchReward } from "../../src/server/LocalMatchRewards";
@@ -70,6 +70,7 @@ describe("game server Caps awards", () => {
     expect(sendLocalMatchReward).toHaveBeenCalledOnce();
     const match = vi.mocked(sendLocalMatchReward).mock.calls[0][0];
     expect(match.players).toHaveLength(2);
+    expect(match.gameType).toBe(GameType.Private);
     expect(match.players[0]).toMatchObject({
       userId: players[0].persistentID,
       won: true,
@@ -78,6 +79,48 @@ describe("game server Caps awards", () => {
     expect(match.players[1].won).toBe(false);
     await game.end();
     expect(sendLocalMatchReward).toHaveBeenCalledOnce();
+  });
+
+  it("submits one-account AI lobby wins with the selected difficulty", async () => {
+    const game = makeGame({
+      config: { bots: 400, difficulty: Difficulty.Impossible },
+    });
+    const player = makeClient({ persistentID: randomUUID() });
+    Object.defineProperty(player, "claims", { value: { provider: "local" } });
+    game.joinClient(player);
+    startGame(game);
+    setInterval(() => {
+      player.lastPing = Date.now();
+    }, 1000);
+    vi.advanceTimersByTime(305000);
+    await mockWsOf(player).emit({
+      type: "winner",
+      winner: ["player", player.clientID],
+      allPlayersStats: {},
+    });
+    expect(sendLocalMatchReward).toHaveBeenCalledWith(
+      expect.objectContaining({
+        gameType: GameType.Private,
+        difficulty: Difficulty.Impossible,
+        players: [
+          expect.objectContaining({ userId: player.persistentID, won: true }),
+        ],
+      }),
+    );
+  });
+
+  it("does not submit an empty lobby win", async () => {
+    const game = makeGame({ config: { bots: 0, nations: "disabled" } });
+    const player = makeClient({ persistentID: randomUUID() });
+    Object.defineProperty(player, "claims", { value: { provider: "local" } });
+    game.joinClient(player);
+    startGame(game);
+    await mockWsOf(player).emit({
+      type: "winner",
+      winner: ["player", player.clientID],
+      allPlayersStats: {},
+    });
+    expect(sendLocalMatchReward).not.toHaveBeenCalled();
   });
 
   it("does not turn match duration into participation for a quiet player", async () => {
@@ -95,6 +138,6 @@ describe("game server Caps awards", () => {
     expect(sendLocalMatchReward).not.toHaveBeenCalled();
     expect(
       capsEligibleConfig({ gameType: GameType.Singleplayer } as GameConfig),
-    ).toBe(false);
+    ).toBe(true);
   });
 });

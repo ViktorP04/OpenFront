@@ -80,7 +80,10 @@ export class StoreModal extends BaseModal {
   protected modalConfig() {
     if (localAccountsEnabled()) {
       return {
-        tabs: [{ key: "cosmetics", label: translateText("store.flags") }],
+        tabs: [
+          { key: "cosmetics", label: translateText("store.cosmetics") },
+          { key: "effects", label: translateText("store.effects") },
+        ],
       };
     }
     if (this.affiliateCode) {
@@ -607,21 +610,21 @@ export class StoreModal extends BaseModal {
   protected renderBody(key: string): TemplateResult {
     if (localAccountsEnabled()) {
       return html`<p class="px-4 py-3 text-sm text-white/70">
-          Earn 10 Caps for finishing an eligible multiplayer match, plus 15 for
-          winning. At least two signed-in players must each participate for five
-          minutes. No cheats. Up to 100 Caps per day (UTC). Singleplayer and
-          guests do not earn Caps. Rewards are credited automatically; reopen
-          the shop to refresh your balance. Owned flags are available in
-          Inventory.
+          Earn Caps from solo, private lobbies, and public games. Wins pay Easy:
+          5, Medium: 15, Hard: 25, Impossible: 40 Caps. Solo and private lobbies
+          pay winners only; public participation pays 2–16 Caps. Sign in before
+          starting and play for at least five minutes against opponents. No
+          cheats. Up to 100 Caps per day (UTC), shared across modes. Rewards are
+          credited automatically; reopen the shop to refresh your balance. Equip
+          owned cosmetics in Inventory. Pattern colour variants are purchased
+          separately.
         </p>
-        <a
-          class="block px-4 text-purple-300 underline"
-          href="#modal=inventory&tab=flags"
+        <a class="block px-4 text-purple-300 underline" href="#modal=inventory"
           >Open Inventory</a
         >
-        ${this.renderBrowser(this.cosmeticsGroups("flags"), {
-          emptyTranslationKey: "store.no_flags",
-        })}`;
+        ${key === "effects"
+          ? this.renderEffectGrid()
+          : this.renderCosmeticsPanel()}`;
     }
     if (this.affiliateCode) {
       return this.renderAffiliateGrid();
@@ -661,7 +664,6 @@ export class StoreModal extends BaseModal {
   protected async onOpen(args?: Record<string, unknown>) {
     if (localAccountsEnabled()) {
       this.affiliateCode = null;
-      this.cosmeticsSubTab = "flags";
       const fresh = await broadcastFreshUserMe();
       await this.onUserMe(fresh);
       return;

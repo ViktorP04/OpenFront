@@ -361,6 +361,12 @@ describe("StoreModal cosmetic browser", () => {
       } as unknown as UserMeResponse);
     const modal = await openStoreOnTab("packs");
     expect(refresh).toHaveBeenCalled();
+    expect(card(modal, red.key)).toBeTruthy();
+    const flagsTab = [
+      ...modal.querySelectorAll<HTMLButtonElement>("button"),
+    ].find((button) => button.textContent?.trim() === "store.flags")!;
+    flagsTab.click();
+    await modal.updateComplete;
     expect(modal.querySelectorAll("cosmetic-card")).toHaveLength(1);
     expect(card(modal, flag.key)).toBeTruthy();
     expect(modal.querySelector("custom-currency-card")).toBeNull();
@@ -383,6 +389,11 @@ describe("StoreModal cosmetic browser", () => {
     await vi.waitFor(() =>
       expect(purchaseCosmetic).toHaveBeenCalledWith(flag, "soft"),
     );
+    modal.open({ tab: "effects" });
+    await vi.waitFor(() =>
+      expect(modal.querySelector("effects-grid")).toBeTruthy(),
+    );
+    expect(modal.querySelector("custom-currency-card")).toBeNull();
   });
 
   it("selects the first visible item and purchases the selected variant", async () => {

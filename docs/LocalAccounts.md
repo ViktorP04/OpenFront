@@ -11,8 +11,9 @@ difficulty is recorded separately, and repeat wins do not duplicate medals.
 Progress is stored in the account database and survives restarts and device
 changes. New wins refresh the achievement display without signing out. Earlier
 games cannot be recovered automatically. Results are client-reported personal
-progress, not independently replay-verified competitive achievements. They grant
-no currency or cosmetics. Full replay archives are not stored by this endpoint.
+progress, not independently replay-verified competitive achievements. Medals do
+not grant currency themselves; eligible new solo wins earn Caps under the separate
+rules below. Full replay archives are not stored by this endpoint.
 
 Local accounts include three free cosmetic flags: **Sunrise**, **Mountain**, and
 **Comet**. Open **Account → Open inventory → Flags** to equip or unequip one.
@@ -24,18 +25,77 @@ cannot equip account-only flags.
 ## Caps and the cosmetic shop
 
 Open **Account → Caps shop**, or **Inventory → Store**. Signed-in players earn
-10 Caps for eligible multiplayer participation, plus 15 for winning. Rewards
+Caps in solo, private lobbies (including one player against AI), and public games.
+Solo and private lobbies pay **winners only**. Rewards scale with difficulty:
+
+| Difficulty | Win (any mode) | Public participation without a win |
+| ---------- | -------------: | ---------------------------------: |
+| Easy       |              5 |                                  2 |
+| Medium     |             15 |                                  6 |
+| Hard       |             25 |                                 10 |
+| Impossible |             40 |                                 16 |
+
+The win amount is the total, not an extra bonus. Private and solo losses, quits,
+and draws earn zero. Rewards
 are credited automatically after a match has a decided winner. Reopen the shop
-to refresh the balance. Caps unlock Crescent (100), Aurora (200), and Violet Crown
-(300) flags; the original three flags remain free. Caps have no cash value and
+to refresh the balance. The **Cosmetics** tab includes territory patterns/skins,
+flags, and crowns. **Effects** includes trails, explosions, and unit colours.
+Equip purchases from the matching Inventory tab. The original three flags
+remain free. Caps have no cash value and
 cannot be bought, traded, or transferred. Premium shop tabs are hidden locally.
 
-At least two distinct local accounts must each have five minutes of connected
-participation in the match. Private lobbies count, including custom maps. Guests,
-spectators, kicked or desynced players, unfinished matches, and singleplayer earn
-nothing. Games using infinite gold/troops, instant building, host cheats, custom
-starting gold, or a gold multiplier do not qualify. Paused time is not counted.
-The earning limit is 100 Caps per account per UTC day; spending does not reset it.
+All designs are defined locally and use the existing upstream rendering and
+equipment systems. They do not require the official game's cosmetic service.
+
+| Category           | Designs                                                                | Caps each |
+| ------------------ | ---------------------------------------------------------------------- | --------: |
+| Territory patterns | Prism Grid, Diagonal, Ripple, Diamonds                                 |   100–175 |
+| Territory skins    | Nebula, Jade Mosaic                                                    |       200 |
+| Crowns             | Amethyst Crown, Sunburst Crown, Frost Crown                            |   200–300 |
+| Ship trails        | Violet Wake, Sunset Wake                                               |       125 |
+| Nuke trails        | Comet Trail, Violet Vortex                                             |   200–300 |
+| Explosions         | Amethyst Shockwave (atom), Solar Embers (hydro), Prism Sparkles (MIRV) |   250–300 |
+| Structures         | Amethyst City                                                          |       200 |
+| Warships           | Copper Fleet                                                           |       200 |
+| Trains             | Neon Express                                                           |       175 |
+| Railroads          | Golden Rails                                                           |       150 |
+
+Patterns have a default player-colour variant plus Amethyst, Lagoon, and Copper
+palettes. Each variant is a separate purchase at the pattern's listed price.
+Effects occupy the existing slots, including separate slots per bomb type.
+
+| Flag         | Caps |
+| ------------ | ---: |
+| Tide         |   75 |
+| Crescent     |  100 |
+| Ember        |  100 |
+| Storm        |  150 |
+| Lotus        |  175 |
+| Aurora       |  200 |
+| Fox          |  200 |
+| Orbit        |  250 |
+| Violet Crown |  300 |
+| Crystal      |  300 |
+| Eclipse      |  400 |
+
+Each rewarded account needs five minutes of connected participation in multiplayer.
+Private lobbies count with AI or human opponents, including guests and custom maps;
+a second signed-in account is no longer required. Empty lobbies do not qualify.
+Guests, spectators, kicked or desynced players, and unfinished matches earn nothing.
+Games using infinite gold/troops, instant building, host cheats, custom starting
+gold, or a gold multiplier do not qualify. Multiplayer paused time is not counted.
+The earning limit is **100 Caps per account per UTC day across all modes**;
+spending does not reset it.
+
+For solo, sign in before starting with the account service reachable. A server
+receipt binds the game ID and starting settings to the account. Only one solo
+game per account can be active for rewards; starting another replaces the receipt.
+A win needs at least five minutes since that receipt, five minutes of reported
+game duration, and 3,000 simulation turns. Receipts expire after six hours and
+persist through service restarts. Repeated starts preserve the timer; repeated
+results cannot pay twice. Difficulty changes, cheats, and games without AI
+opponents do not qualify. Custom settings may earn Caps without qualifying for
+a default-settings medal. Games started before this update cannot earn solo Caps.
 
 Wallets, a transaction ledger, processed match IDs, and cosmetic ownership live
 in the existing account SQLite database. Tables are created automatically on
@@ -54,7 +114,9 @@ Winners still use upstream's client-vote consensus, not an independent server
 simulation. Connected participation is not proof of active play; daily limits
 bound ordinary farming, but multiple accounts or cooperating players can still
 farm cosmetics. This is a small community economy, not a competitive anti-cheat
-system. Existing singleplayer medals intentionally grant no Caps.
+system. Solo wins are client-reported: receipts and timing limit rapid claims,
+but do not independently replay or verify the simulation. A modified client can
+still fabricate wins after waiting. Existing medals are not backfilled with Caps.
 
 This fork includes standalone username/password accounts. No Google application,
 email provider, or OpenFront account API is needed. Node.js 22.13 or newer is

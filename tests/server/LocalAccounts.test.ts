@@ -1,6 +1,7 @@
 import { gzipSync } from "node:zlib";
 import { base64urlToUuid } from "../../src/core/Base64";
 import { CosmeticsSchema } from "../../src/core/CosmeticSchemas";
+import type { PlayerCosmeticRefs } from "../../src/core/Schemas";
 import { verifyClientToken } from "../../src/server/jwt";
 import {
   freeCosmeticFlares,
@@ -99,6 +100,168 @@ async function setup(directory?: string, issuer?: string) {
 
 // Real scrypt and restart checks need headroom when the full suite shares CPU.
 describe("local accounts", { timeout: 15000 }, () => {
+  it("authenticates solo starts and credits a gzip win once after the server clock permits it", async () => {
+    const api = await setup();
+    const cookie = api.cookie(await api.register());
+    const { jwt } = await (await api.post("/auth/refresh", {}, cookie)).json();
+    const info = completionInfo();
+    info.players[0].persistentID = base64urlToUuid(decodeJwt(jwt).sub!);
+    info.config.difficulty = "Easy";
+    info.end = info.start + 301000;
+    info.duration = 301;
+    info.num_turns = 3010;
+    const start = (auth = `Bearer ${jwt}`, requestOrigin = origin) =>
+      fetch(api.base + "/rewards/solo/start", {
+        method: "POST",
+        headers: {
+          origin: requestOrigin,
+          authorization: auth,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ gameId: info.gameID, config: info.config }),
+      });
+    expect((await start("")).status).toBe(401);
+    expect((await start(`Bearer ${jwt}`, "https://wrong.test")).status).toBe(
+      403,
+    );
+    expect(await (await start()).json()).toEqual({ eligible: true });
+    // Move the timestamp only in this disposable fixture, avoiding a five-minute test.
+    const db = new DatabaseSync(path.join(api.dir, "accounts.sqlite"));
+    try {
+      db.prepare("UPDATE caps_solo_starts SET started_at=?").run(
+        Date.now() - 301000,
+      );
+    } finally {
+      db.close();
+    }
+    const save = () =>
+      fetch(api.base + "/archive_singleplayer_game", {
+        method: "POST",
+        headers: {
+          origin,
+          authorization: `Bearer ${jwt}`,
+          "content-type": "application/json",
+          "content-encoding": "gzip",
+        },
+        body: gzipSync(JSON.stringify({ info })),
+      });
+    expect(await (await save()).json()).toEqual({
+      recorded: true,
+      capsAwarded: 5,
+    });
+    expect(await (await save()).json()).toEqual({
+      recorded: true,
+      capsAwarded: 0,
+    });
+    expect(await (await start()).json()).toEqual({ eligible: false });
+    await api.close();
+    const restarted = await setup(api.dir);
+    expect((await (await restarted.me(jwt)).json()).player.currency.soft).toBe(
+      5,
+    );
+  });
+  it("purchases and equips patterns, skins, crowns and effects with exact ownership", async () => {
+    const api = await setup();
+    const cookie = api.cookie(await api.register());
+    const { jwt } = await (await api.post("/auth/refresh", {}, cookie)).json();
+    const userId = base64urlToUuid(decodeJwt(jwt).sub!);
+    // Fund only this disposable fixture; earning has its own integration tests.
+    const db = new DatabaseSync(path.join(api.dir, "accounts.sqlite"));
+    try {
+      db.prepare("INSERT INTO caps_wallets VALUES (?, ?)").run(userId, 5000);
+    } finally {
+      db.close();
+    }
+    const purchase = (type: string, name: string, palette?: string) =>
+      fetch(api.base + "/shop/purchase", {
+        method: "POST",
+        headers: {
+          origin,
+          authorization: `Bearer ${jwt}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          cosmeticType: type,
+          cosmeticName: name,
+          colorPaletteName: palette,
+          currencyType: "soft",
+        }),
+      });
+    const cases: [
+      string,
+      string,
+      string | undefined,
+      number,
+      PlayerCosmeticRefs,
+    ][] = [
+      [
+        "pattern",
+        "prism_grid",
+        "amethyst",
+        100,
+        { patternName: "prism_grid", patternColorPaletteName: "amethyst" },
+      ],
+      ["pattern", "diagonal", undefined, 125, { patternName: "diagonal" }],
+      ["skin", "nebula", undefined, 200, { skinName: "nebula" }],
+      ["crown", "frost_crown", undefined, 300, { crownName: "frost_crown" }],
+      [
+        "effect",
+        "violet_wake",
+        undefined,
+        125,
+        { effects: { transportShipTrail: "violet_wake" } },
+      ],
+      [
+        "effect",
+        "amethyst_shockwave",
+        undefined,
+        250,
+        { effects: { atom: "amethyst_shockwave" } },
+      ],
+      [
+        "effect",
+        "neon_express",
+        undefined,
+        175,
+        { effects: { train: "neon_express" } },
+      ],
+    ];
+    const checker = localCosmeticChecker(origin);
+    let remaining = 5000;
+    for (const [type, name, palette, price, refs] of cases) {
+      expect(checker.isAllowed(freeCosmeticFlares, refs).type).toBe(
+        "forbidden",
+      );
+      expect((await purchase(type, name, palette)).status).toBe(200);
+      expect((await purchase(type, name, palette)).status).toBe(200);
+      remaining -= price;
+      const profile = await (await api.me(jwt)).json();
+      expect(profile.player.currency.soft).toBe(remaining);
+      expect(checker.isAllowed(profile.player.flares, refs).type).toBe(
+        "allowed",
+      );
+    }
+    for (const [type, name, palette] of [
+      ["pattern", "prism_grid", "unknown"],
+      ["skin", "nebula", "amethyst"],
+      ["effect", "frost_crown", undefined],
+      ["flag", "violet_wake", undefined],
+    ])
+      expect((await purchase(type!, name!, palette)).status).toBe(404);
+    const profile = await (await api.me(jwt)).json();
+    expect(profile.player.currency.soft).toBe(remaining);
+    expect(
+      checker.isAllowed(profile.player.flares, {
+        patternName: "prism_grid",
+        patternColorPaletteName: "lagoon",
+      }).type,
+    ).toBe("forbidden");
+    expect(
+      checker.isAllowed(profile.player.flares, {
+        effects: { nukeTrail: "violet_wake" },
+      }).type,
+    ).toBe("forbidden");
+  });
   it("secures match credits, caps rewards, and persists atomic cosmetic purchases", async () => {
     const api = await setup();
     const cookie = api.cookie(await api.register());
@@ -120,6 +283,8 @@ describe("local accounts", { timeout: 15000 }, () => {
         },
         body: JSON.stringify({
           gameId,
+          gameType: "Public",
+          difficulty: "Hard",
           players: [
             { userId, seconds: 300, won: true },
             { userId: otherId, seconds: 300, won: false },
@@ -208,12 +373,18 @@ describe("local accounts", { timeout: 15000 }, () => {
     expect(
       (await save(`Bearer ${jwt}`, "https://wrong.example.test")).status,
     ).toBe(403);
-    expect(await (await save()).json()).toEqual({ recorded: true });
+    expect(await (await save()).json()).toEqual({
+      recorded: true,
+      capsAwarded: 0,
+    });
     await save();
     info.config.difficulty = "Hard";
     await save();
     info.config.infiniteGold = true;
-    expect(await (await save()).json()).toEqual({ recorded: false });
+    expect(await (await save()).json()).toEqual({
+      recorded: false,
+      capsAwarded: 0,
+    });
     await api.close();
     const restarted = await setup(api.dir);
     const profile = await (await restarted.me(jwt)).json();
@@ -237,6 +408,22 @@ describe("local accounts", { timeout: 15000 }, () => {
     const catalogResponse = await fetch(api.base + "/cosmetics.json");
     expect(catalogResponse.status).toBe(200);
     const catalog = CosmeticsSchema.parse(await catalogResponse.json());
+    expect(Object.keys(catalog.patterns)).toHaveLength(4);
+    expect(
+      Object.values(catalog.effects ?? {}).flatMap((group) =>
+        Object.values(group ?? {}),
+      ),
+    ).toHaveLength(11);
+    for (const cosmetic of [
+      ...Object.values(catalog.crowns ?? {}),
+      ...Object.values(catalog.skins ?? {}),
+    ]) {
+      const asset = await fetch(
+        api.base + new URL(cosmetic.url).pathname.replace("/api/accounts", ""),
+      );
+      expect(asset.status).toBe(200);
+      expect(asset.headers.get("content-type")).toContain("image/svg+xml");
+    }
     expect(Object.keys(catalog.flags)).toEqual([
       "sunrise",
       "mountain",
@@ -244,6 +431,14 @@ describe("local accounts", { timeout: 15000 }, () => {
       "crescent",
       "aurora",
       "violet_crown",
+      "tide",
+      "ember",
+      "storm",
+      "lotus",
+      "fox",
+      "orbit",
+      "crystal",
+      "eclipse",
     ]);
     const cookie = api.cookie(await api.register());
     const { jwt } = await (await api.post("/auth/refresh", {}, cookie)).json();

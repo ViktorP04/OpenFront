@@ -1,5 +1,6 @@
 import { gunzipSync } from "node:zlib";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import * as AuthConfig from "../../src/auth/AuthConfig";
 import { EventBus } from "../../src/core/EventBus";
 import type { ClientMessage, GameStartInfo } from "../../src/core/Schemas";
 
@@ -96,6 +97,35 @@ describe("LocalServer archiving", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("registers local solo rewards before submitting a win and skips replays", async () => {
+    vi.spyOn(AuthConfig, "localAccountsEnabled").mockReturnValue(true);
+    const server = makeServer(false);
+    server.start();
+    try {
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+      expect(fetchMock.mock.calls[0][0]).toBe(
+        "https://api.test/rewards/solo/start",
+      );
+      expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+        gameId: "gameID12",
+        config: makeGameStartInfo().config,
+      });
+      server.onMessage(winnerMsg);
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+      expect(fetchMock.mock.calls[1][0]).toBe(
+        "https://api.test/archive_singleplayer_game",
+      );
+      const replay = makeServer(true);
+      replay.start();
+      replay.endGame();
+      await Promise.resolve();
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      server.endGame();
+    }
   });
 
   it("archives at win time, without keepalive, and not again at endGame", async () => {

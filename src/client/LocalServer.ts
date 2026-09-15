@@ -63,6 +63,7 @@ export class LocalServer {
   // skipped win-time uploads during teardown.
   private archived = false;
   private archiveInFlight = false;
+  private rewardStart: Promise<void> = Promise.resolve();
 
   private turnsExecuted = 0;
   private turnStartTime = 0;
@@ -143,6 +144,13 @@ export class LocalServer {
       throw new Error("missing gameStartInfo");
     }
     this.clientID = this.lobbyConfig.gameStartInfo.players[0]?.clientID;
+    if (
+      localAccountsEnabled() &&
+      !this.isReplay &&
+      !this.lobbyConfig.gameRecord
+    ) {
+      this.rewardStart = this.registerRewardStart();
+    }
     if (!this.clientID) {
       throw new Error("missing clientID");
     }
@@ -154,6 +162,24 @@ export class LocalServer {
       // Don't send myClientID for replays — viewer has no player identity.
       myClientID: this.lobbyConfig.gameRecord ? undefined : this.clientID,
     } satisfies ServerStartGameMessage);
+  }
+
+  private async registerRewardStart(): Promise<void> {
+    try {
+      const auth = await getAuthHeader();
+      if (!auth) return;
+      const info = this.lobbyConfig.gameStartInfo!;
+      const response = await fetch(`${getApiBase()}/rewards/solo/start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: auth },
+        body: JSON.stringify({ gameId: info.gameID, config: info.config }),
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!response.ok && response.status !== 401)
+        console.warn("Could not register solo Caps rewards.");
+    } catch {
+      console.warn("Solo Caps rewards unavailable for this game.");
+    }
   }
 
   onMessage(clientMsg: ClientMessage) {
@@ -329,6 +355,7 @@ export class LocalServer {
   ): Promise<void> {
     this.archiveInFlight = true;
     try {
+      if (localAccountsEnabled()) await this.rewardStart;
       const authHeader = await getAuthHeader();
       if (authHeader === "") {
         // The archive API requires a session. Guests have one too, so this
