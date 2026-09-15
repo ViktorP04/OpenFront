@@ -51,3 +51,26 @@ body:not(.in-game) input[type="radio"],
 body:not(.in-game) input[type="range"] {
   accent-color: var(--color-malibu-blue);
 }
+
+/* Gameplay signals keep their own palette, independent of menu branding.
+   Incoming attacks already use red; outgoing attacks and retreats use aquarius. */
+attacks-display {
+  --color-aquarius: #4ade80;
+}
+
+/* These icons have an inline blue filter upstream; match the green count text. */
+attacks-display .text-aquarius img {
+  filter: brightness(0) saturate(100%) invert(78%) sepia(45%) saturate(690%)
+    hue-rotate(80deg) brightness(95%) contrast(92%) !important;
+}
+
+/* Available troops / troops committed to attacks, on both desktop and mobile.
+   Darker fills keep the overlaid white troop counts readable. */
+control-panel {
+  --color-malibu-blue: #15803d;
+  --color-aquarius: #b45309;
+}
+
+control-panel input[type="range"] {
+  accent-color: #4ade80;
+}
