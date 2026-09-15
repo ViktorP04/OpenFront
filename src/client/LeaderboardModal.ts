@@ -1,6 +1,8 @@
 import { html } from "lit";
 import { customElement, query, state } from "lit/decorators.js";
+import { localAccountsEnabled } from "../auth/AuthConfig";
 import { RankedType } from "../core/game/Game";
+import type { LocalLeaderboardMetric } from "../core/LocalLeaderboard";
 import { BaseModal } from "./components/BaseModal";
 import "./components/leaderboard/LeaderboardClanTable";
 import type { LeaderboardClanTable } from "./components/leaderboard/LeaderboardClanTable";
@@ -8,6 +10,8 @@ import "./components/leaderboard/LeaderboardPlayerList";
 import type { LeaderboardPlayerList } from "./components/leaderboard/LeaderboardPlayerList";
 import "./components/leaderboard/LeaderboardTribeTable";
 import type { LeaderboardTribeTable } from "./components/leaderboard/LeaderboardTribeTable";
+import "./components/leaderboard/LocalLeaderboardTable";
+import type { LocalLeaderboardTable } from "./components/leaderboard/LocalLeaderboardTable";
 import { modalHeader } from "./components/ui/ModalHeader";
 import { translateText } from "./Utils";
 
@@ -35,10 +39,20 @@ export class LeaderboardModal extends BaseModal {
   @query("leaderboard-tribe-table")
   private tribeTable?: LeaderboardTribeTable;
 
+  @query("local-leaderboard-table")
+  private localTable?: LocalLeaderboardTable;
+
   private loadToken = 0;
   private lastRankedType: RankedType = RankedType.OneVOne;
 
   protected modalConfig() {
+    if (localAccountsEnabled())
+      return {
+        tabs: [
+          { key: "caps", label: "Caps earned" },
+          { key: "medals", label: "Map medals" },
+        ],
+      };
     return {
       tabs: [
         {
@@ -70,6 +84,10 @@ export class LeaderboardModal extends BaseModal {
   }
 
   protected onTabEnter(): void {
+    if (localAccountsEnabled()) {
+      this.loadActiveTabData();
+      return;
+    }
     // The player list is one element shared by both ladder tabs, so it needs a
     // ranked type even while another tab is up: keep showing the last one.
     this.lastRankedType =
@@ -78,6 +96,16 @@ export class LeaderboardModal extends BaseModal {
   }
 
   private loadActiveTabData() {
+    if (localAccountsEnabled()) {
+      void this.updateComplete.then(() => {
+        if (this.localTable) {
+          this.localTable.metric =
+            this.activeTab === "medals" ? "medals" : "caps";
+          void this.localTable.load();
+        }
+      });
+      return;
+    }
     const token = ++this.loadToken;
 
     const active = this.activeTab;
@@ -125,10 +153,12 @@ export class LeaderboardModal extends BaseModal {
         >(${start} - ${end})</span
       >`;
     }
-    const refreshTime = html`<span
-      class="text-sm font-normal text-white/40 ml-2 wrap-break-words italic"
-      >(${translateText("leaderboard_modal.refresh_time")})</span
-    >`;
+    const refreshTime = localAccountsEnabled()
+      ? html``
+      : html`<span
+          class="text-sm font-normal text-white/40 ml-2 wrap-break-words italic"
+          >(${translateText("leaderboard_modal.refresh_time")})</span
+        >`;
 
     return modalHeader({
       titleContent: html`
@@ -151,6 +181,13 @@ export class LeaderboardModal extends BaseModal {
   }
 
   protected renderBody() {
+    if (localAccountsEnabled())
+      return html`<local-leaderboard-table
+        class="block h-full"
+        .metric=${(this.activeTab === "medals"
+          ? "medals"
+          : "caps") as LocalLeaderboardMetric}
+      ></local-leaderboard-table>`;
     return html`
       <div class="flex-1 min-h-0 h-full">
         <leaderboard-player-list

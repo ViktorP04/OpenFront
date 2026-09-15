@@ -16,10 +16,12 @@ import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { UserMeResponseSchema } from "../core/ApiSchemas";
 import { uuidToBase64url } from "../core/Base64";
+import { LocalLeaderboardMetricSchema } from "../core/LocalLeaderboard";
 import { GameConfigSchema, ID } from "../core/Schemas";
 import { eligibleCompletion } from "./LocalAchievements";
 import { freeCosmeticFlares, localCosmetics } from "./LocalCosmetics";
 import { LocalEconomy, LocalMatchRewardSchema } from "./LocalEconomy";
+import { localLeaderboard } from "./LocalLeaderboard";
 
 const credentials = z.object({
   username: z
@@ -531,6 +533,20 @@ export async function createLocalAccounts(options: {
         currency: { soft: economy.balance(session.user_id), hard: 0 },
       });
     }
+  });
+  router.get("/leaderboard/local", (req, res) => {
+    const query = z
+      .object({
+        metric: LocalLeaderboardMetricSchema.default("caps"),
+        page: z.coerce.number().int().min(1).max(10000).default(1),
+      })
+      .safeParse(req.query);
+    if (!query.success) {
+      res.status(400).json({ error: "Invalid leaderboard query." });
+      return;
+    }
+    res.set("Cache-Control", "no-store");
+    res.json(localLeaderboard(db, query.data.metric, query.data.page));
   });
   router.get("/users/@me", async (req, res) => {
     const session = await bearerSession(req);

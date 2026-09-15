@@ -21,11 +21,33 @@ function pattern(bits: (x: number, y: number) => boolean): string {
 }
 
 const palettes = [
+  { name: "rose", primaryColor: "#9d174d", secondaryColor: "#fbcfe8" },
+  { name: "emerald", primaryColor: "#166534", secondaryColor: "#bbf7d0" },
+  { name: "midnight", primaryColor: "#1e293b", secondaryColor: "#cbd5e1" },
   { name: "amethyst", primaryColor: "#7c3aed", secondaryColor: "#ddd6fe" },
   { name: "lagoon", primaryColor: "#0e7490", secondaryColor: "#a5f3fc" },
   { name: "copper", primaryColor: "#9a3412", secondaryColor: "#fed7aa" },
 ];
 const patterns = [
+  {
+    ...item("crosshatch", 100),
+    pattern: pattern((x, y) => x % 4 === 0 || y % 4 === 0),
+  },
+  {
+    ...item("chevrons", 150),
+    pattern: pattern((x, y) => (y + Math.abs(x - 4)) % 8 < 2),
+  },
+  {
+    ...item("constellation", 175),
+    pattern: pattern(
+      (x, y) =>
+        (x === 1 && y === 1) || (x === 5 && y === 3) || (x === 3 && y === 6),
+    ),
+  },
+  {
+    ...item("battlements", 200),
+    pattern: pattern((x, y) => y % 4 === 0 || (x + (y < 4 ? 0 : 4)) % 8 === 0),
+  },
   { ...item("prism_grid", 100), pattern: pattern((x, y) => x < 4 !== y < 4) },
   { ...item("diagonal", 125), pattern: pattern((x, y) => (x + y) % 8 < 3) },
   {
@@ -39,6 +61,9 @@ const patterns = [
 ];
 
 const violet = ["#7c3aed", "#c4b5fd", "#67e8f9"];
+const glacier = ["#0284c7", "#67e8f9", "#f0f9ff"];
+const emerald = ["#15803d", "#4ade80", "#d9f99d"];
+const rose = ["#be185d", "#fb7185", "#fce7f3"];
 const sunset = ["#f97316", "#fbbf24", "#fb7185"];
 const gradient = (colors: string[]) => ({
   type: "gradient" as const,
@@ -47,6 +72,55 @@ const gradient = (colors: string[]) => ({
   movementSpeed: 2,
 });
 export const localEffects: Effect[] = [
+  {
+    ...item("glacier_wake", 125),
+    effectType: "transportShipTrail",
+    attributes: gradient(glacier),
+  },
+  {
+    ...item("rose_spiral", 275),
+    effectType: "nukeTrail",
+    attributes: {
+      type: "spiral",
+      colors: rose,
+      radius: 2,
+      strands: 2,
+      rotationSpeed: 1.5,
+    },
+  },
+  {
+    ...item("glacier_shockwave", 250),
+    effectType: "nukeExplosion",
+    attributes: {
+      type: "shockwave",
+      nukeType: "atom",
+      colors: glacier,
+      size: 70,
+      speed: 35,
+      thickness: 2,
+      transitionSpeed: 1,
+    },
+  },
+  {
+    ...item("emerald_city", 200),
+    effectType: "structures",
+    attributes: gradient(emerald),
+  },
+  {
+    ...item("glacier_fleet", 200),
+    effectType: "warship",
+    attributes: gradient(glacier),
+  },
+  {
+    ...item("rose_express", 175),
+    effectType: "train",
+    attributes: gradient(rose),
+  },
+  {
+    ...item("emerald_rails", 150),
+    effectType: "railroad",
+    attributes: gradient(emerald),
+  },
   {
     ...item("violet_wake", 125),
     effectType: "transportShipTrail",
@@ -167,11 +241,17 @@ export function localCosmeticStyles(origin: string) {
       ]),
     ),
     crowns: assets("crowns", [
+      { name: "laurel_crown", priceSoft: 150 },
+      { name: "phoenix_crown", priceSoft: 275 },
+      { name: "orbit_crown", priceSoft: 350 },
       { name: "amethyst_crown", priceSoft: 200 },
       { name: "sunburst_crown", priceSoft: 250 },
       { name: "frost_crown", priceSoft: 300 },
     ]),
     skins: assets("skins", [
+      { name: "rose_quartz", priceSoft: 175 },
+      { name: "deep_space", priceSoft: 250 },
+      { name: "circuit_board", priceSoft: 225 },
       { name: "nebula", priceSoft: 200 },
       { name: "jade_mosaic", priceSoft: 200 },
     ]),

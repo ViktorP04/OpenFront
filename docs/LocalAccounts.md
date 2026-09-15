@@ -47,20 +47,20 @@ cannot be bought, traded, or transferred. Premium shop tabs are hidden locally.
 All designs are defined locally and use the existing upstream rendering and
 equipment systems. They do not require the official game's cosmetic service.
 
-| Category           | Designs                                                                | Caps each |
-| ------------------ | ---------------------------------------------------------------------- | --------: |
-| Territory patterns | Prism Grid, Diagonal, Ripple, Diamonds                                 |   100–175 |
-| Territory skins    | Nebula, Jade Mosaic                                                    |       200 |
-| Crowns             | Amethyst Crown, Sunburst Crown, Frost Crown                            |   200–300 |
-| Ship trails        | Violet Wake, Sunset Wake                                               |       125 |
-| Nuke trails        | Comet Trail, Violet Vortex                                             |   200–300 |
-| Explosions         | Amethyst Shockwave (atom), Solar Embers (hydro), Prism Sparkles (MIRV) |   250–300 |
-| Structures         | Amethyst City                                                          |       200 |
-| Warships           | Copper Fleet                                                           |       200 |
-| Trains             | Neon Express                                                           |       175 |
-| Railroads          | Golden Rails                                                           |       150 |
+| Category           | Designs                                                                                      | Caps each |
+| ------------------ | -------------------------------------------------------------------------------------------- | --------: |
+| Territory patterns | Prism Grid, Diagonal, Ripple, Diamonds, Crosshatch, Chevrons, Constellation, Battlements     |   100–175 |
+| Territory skins    | Nebula, Jade Mosaic, Rose Quartz, Deep Space, Circuit Board                                  |   175�250 |
+| Crowns             | Amethyst Crown, Sunburst Crown, Frost Crown, Laurel Crown, Phoenix Crown, Orbit Crown        |   200–300 |
+| Ship trails        | Violet Wake, Sunset Wake, Glacier Wake                                                       |       125 |
+| Nuke trails        | Comet Trail, Violet Vortex, Rose Spiral                                                      |   200–300 |
+| Explosions         | Amethyst Shockwave and Glacier Shockwave (atom), Solar Embers (hydro), Prism Sparkles (MIRV) |   250–300 |
+| Structures         | Amethyst City, Emerald City                                                                  |       200 |
+| Warships           | Copper Fleet, Glacier Fleet                                                                  |       200 |
+| Trains             | Neon Express, Rose Express                                                                   |       175 |
+| Railroads          | Golden Rails, Emerald Rails                                                                  |       150 |
 
-Patterns have a default player-colour variant plus Amethyst, Lagoon, and Copper
+Patterns have a default player-colour variant plus Amethyst, Lagoon, Copper, Rose, Emerald, and Midnight
 palettes. Each variant is a separate purchase at the pattern's listed price.
 Effects occupy the existing slots, including separate slots per bomb type.
 
@@ -261,3 +261,9 @@ CI checks API configuration, existing authentication contracts, login/refresh/
 logout, and guest identity isolation. Its production-container test also creates
 a private lobby, joins with accounts and a guest, reconnects the guest, and
 rejects guest/revoked-session hosting. Run these checks after upstream merges.
+
+### Local leaderboards
+
+The leaderboard displays lifetime Caps earned and solo map medals in local-account mode. It reads existing progress, so previous earnings and medals appear automatically. Caps spending does not lower a score; the daily earning limit still applies. Each unique map/difficulty medal counts once. Tied scores share a rank. Guests can view the boards; only saved account progress appears. Refresh reloads current scores, with 50 players per page.
+
+`GET /api/accounts/leaderboard/local?metric=caps&page=1` (or `metric=medals`) returns ranks, usernames, hashed public IDs, scores, and `hasMore`. It never exposes account IDs, credentials, or session data. These are progress boards, not upstream ranked Elo, clan, or tribe ladders. Solo progress retains the existing client-reported completion limitations. No extra deployment settings or database migration are required.

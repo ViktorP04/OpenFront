@@ -203,6 +203,22 @@ describe("local accounts", { timeout: 15000 }, () => {
       ],
       ["pattern", "diagonal", undefined, 125, { patternName: "diagonal" }],
       ["skin", "nebula", undefined, 200, { skinName: "nebula" }],
+      [
+        "pattern",
+        "chevrons",
+        "rose",
+        150,
+        { patternName: "chevrons", patternColorPaletteName: "rose" },
+      ],
+      ["skin", "circuit_board", undefined, 225, { skinName: "circuit_board" }],
+      ["crown", "orbit_crown", undefined, 350, { crownName: "orbit_crown" }],
+      [
+        "effect",
+        "glacier_shockwave",
+        undefined,
+        250,
+        { effects: { atom: "glacier_shockwave" } },
+      ],
       ["crown", "frost_crown", undefined, 300, { crownName: "frost_crown" }],
       [
         "effect",
@@ -408,12 +424,12 @@ describe("local accounts", { timeout: 15000 }, () => {
     const catalogResponse = await fetch(api.base + "/cosmetics.json");
     expect(catalogResponse.status).toBe(200);
     const catalog = CosmeticsSchema.parse(await catalogResponse.json());
-    expect(Object.keys(catalog.patterns)).toHaveLength(4);
+    expect(Object.keys(catalog.patterns)).toHaveLength(8);
     expect(
       Object.values(catalog.effects ?? {}).flatMap((group) =>
         Object.values(group ?? {}),
       ),
-    ).toHaveLength(11);
+    ).toHaveLength(18);
     for (const cosmetic of [
       ...Object.values(catalog.crowns ?? {}),
       ...Object.values(catalog.skins ?? {}),
