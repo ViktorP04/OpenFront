@@ -23,6 +23,7 @@ import {
   resolveCosmetics,
 } from "../../Cosmetics";
 import { crazyGamesSDK } from "../../CrazyGamesSDK";
+import { upstreamPromotionsEnabled } from "../../ForkPresentation";
 import { PlaySoundEffectEvent } from "../../sound/Sounds";
 import { steamSDK } from "../../SteamSDK";
 import { SendWinnerEvent } from "../../Transport";
@@ -114,6 +115,7 @@ export class WinModal extends LitElement implements Controller {
   }
 
   innerHtml() {
+    if (!upstreamPromotionsEnabled) return html``;
     // The Steam desktop build has nothing to wishlist — fall through to the
     // other promos so the box is never empty.
     const canWishlist = !steamSDK.isOnSteam();
@@ -257,7 +259,7 @@ export class WinModal extends LitElement implements Controller {
 
   async show() {
     crazyGamesSDK.gameplayStop();
-    await this.loadPatternContent();
+    if (upstreamPromotionsEnabled) await this.loadPatternContent();
     // Check if this is a ranked game
     this.isRankedGame =
       this.game.config().gameConfig().rankedType !== undefined;

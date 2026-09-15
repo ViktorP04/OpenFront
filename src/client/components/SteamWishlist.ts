@@ -1,5 +1,6 @@
 import { html, LitElement, nothing } from "lit";
 import { customElement, property, query, state } from "lit/decorators.js";
+import { upstreamPromotionsEnabled } from "../ForkPresentation";
 import { steamSDK } from "../SteamSDK";
 import { translateText } from "../Utils";
 
@@ -103,7 +104,7 @@ export class SteamWishlist extends LitElement {
   }
 
   render() {
-    if (steamSDK.isOnSteam()) return nothing;
+    if (!upstreamPromotionsEnabled || steamSDK.isOnSteam()) return nothing;
 
     const frameWidth = Math.min(
       WIDGET_WIDTH,

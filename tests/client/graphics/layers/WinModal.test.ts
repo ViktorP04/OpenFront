@@ -1,3 +1,6 @@
+vi.mock("../../../../src/client/ForkPresentation", () => ({
+  upstreamPromotionsEnabled: true,
+}));
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   fetchCosmetics,

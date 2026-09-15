@@ -1,3 +1,10 @@
+const promotions = vi.hoisted(() => ({ enabled: true }));
+vi.mock("../../src/client/ForkPresentation", () => ({
+  get upstreamPromotionsEnabled() {
+    return promotions.enabled;
+  },
+}));
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { isOnCrazyGames, isDesktopShell } = vi.hoisted(() => ({
@@ -24,6 +31,7 @@ describe("purchase-nudge-modal", () => {
   let el: PurchaseNudgeModal;
 
   beforeEach(async () => {
+    promotions.enabled = true;
     localStorage.clear();
     localStorage.setItem("gamesPlayed", "51");
     isOnCrazyGames.mockReturnValue(false);
@@ -46,6 +54,15 @@ describe("purchase-nudge-modal", () => {
     await el.updateComplete;
     return el.querySelector('[role="dialog"]') !== null;
   }
+
+  it("never nudges guests or accounts when fork promotions are disabled", async () => {
+    promotions.enabled = false;
+    for (const adfree of [null, false, true]) {
+      fireUserMe(adfree);
+      expect(await shown()).toBe(false);
+    }
+    expect(localStorage.getItem("purchaseNudgeShown")).toBeNull();
+  });
 
   it("shows on load for a long-time non-adfree player and records it", async () => {
     fireUserMe(false);

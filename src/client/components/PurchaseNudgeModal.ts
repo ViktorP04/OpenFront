@@ -3,6 +3,7 @@ import { customElement, state } from "lit/decorators.js";
 import type { UserMeResponse } from "../../core/ApiSchemas";
 import { crazyGamesSDK } from "../CrazyGamesSDK";
 import { isDesktopShell } from "../DesktopShell";
+import { upstreamPromotionsEnabled } from "../ForkPresentation";
 import { getGamesPlayed, translateText } from "../Utils";
 
 const SHOWN_KEY = "purchaseNudgeShown";
@@ -25,7 +26,7 @@ export class PurchaseNudgeModal extends LitElement {
   @state() private isVisible = false;
 
   private onUserMeResponse = (event: Event) => {
-    if (this.isVisible) return;
+    if (!upstreamPromotionsEnabled || this.isVisible) return;
     const detail = (event as CustomEvent<UserMeResponse | false>).detail;
     if (detail !== false && detail.player.adfree === true) {
       // Already purchased: latch the flag now so that a later logged-out

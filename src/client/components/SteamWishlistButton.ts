@@ -1,6 +1,7 @@
 import { html, LitElement, nothing } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import { assetUrl } from "../../core/AssetUrls";
+import { upstreamPromotionsEnabled } from "../ForkPresentation";
 import { steamSDK } from "../SteamSDK";
 import { translateText } from "../Utils";
 import { steamStoreUrl } from "./SteamWishlist";
@@ -27,7 +28,7 @@ export class SteamWishlistButton extends LitElement {
   }
 
   render() {
-    if (steamSDK.isOnSteam()) return nothing;
+    if (!upstreamPromotionsEnabled || steamSDK.isOnSteam()) return nothing;
 
     return html`
       <a

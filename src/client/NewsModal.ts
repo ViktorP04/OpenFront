@@ -43,7 +43,7 @@ export class NewsModal extends BaseModal {
   protected onOpen(): void {
     if (!this.initialized) {
       this.initialized = true;
-      fetch(assetUrl("changelog.md"))
+      fetch(assetUrl("fork-news.md"))
         .then((response) => (response.ok ? response.text() : "Failed to load"))
         .then((markdown) => normalizeNewsMarkdown(markdown))
         .then((markdown) => (this.markdown = markdown))
