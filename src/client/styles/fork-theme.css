@@ -1,0 +1,53 @@
+/* Fork-only palette. Keep upstream class names so updates need no component edits.
+   Remove this import from styles.css to restore the upstream theme. */
+:root {
+  --color-malibu-blue: #9650d7;
+  --color-aquarius: #8740c8;
+  --color-bright-blue: #c4b5fd;
+  --color-deep-navy: #180f29;
+  --color-hex-cyan: #c4b5fd;
+  --color-surface: #180f29;
+
+  --shadow-malibu-blue: 0 0 15px rgb(150 80 215 / 20%);
+  --shadow-malibu-blue-soft: 0 0 12px rgb(150 80 215 / 20%);
+  --shadow-malibu-blue-strong: 0 0 15px rgb(150 80 215 / 30%);
+  --shadow-malibu-blue-pill: 0 0 6px rgb(150 80 215 / 35%);
+  --shadow-malibu-blue-ring-sm: 0 0 0 4px rgb(150 80 215 / 20%);
+  --shadow-malibu-blue-ring-lg: 0 0 0 6px rgb(150 80 215 / 30%);
+  --shadow-lobby-card-hover: 0 0 0 2px #9650d7, 0 0 20px rgb(150 80 215 / 50%);
+  --shadow-action-card-hover: 0 0 0 1px #9650d7, 0 0 12px rgb(150 80 215 / 35%);
+}
+
+/* Menu utilities also use Tailwind's blue scale. Scope those overrides to menus
+   so gameplay's team, territory, and status colors retain their meaning. */
+body:not(.in-game) {
+  --color-blue-50: #faf5ff;
+  --color-blue-100: #f3e8ff;
+  --color-blue-200: #e9d5ff;
+  --color-blue-300: #d8b4fe;
+  --color-blue-400: #c084fc;
+  --color-blue-500: #9650d7;
+  --color-blue-600: #8740c8;
+  --color-blue-700: #7131aa;
+  --color-blue-800: #582586;
+  --color-blue-900: #3b195c;
+  --color-blue-950: #210e35;
+}
+
+/* The original backdrop remains visible under a subtle plum tint. */
+body:not(.in-game) #background-layer {
+  background-color: #3b195c;
+  background-blend-mode: luminosity;
+}
+
+/* Older controls predate the shared palette and use literal blue values. */
+body:not(.in-game) :is(.option-card, .random-map).selected {
+  border-color: var(--color-malibu-blue);
+  background-color: rgb(150 80 215 / 12%);
+}
+
+body:not(.in-game) input[type="checkbox"],
+body:not(.in-game) input[type="radio"],
+body:not(.in-game) input[type="range"] {
+  accent-color: var(--color-malibu-blue);
+}
