@@ -291,7 +291,10 @@ export class LangSelector extends LitElement {
       "tutorial-panel",
     ];
 
-    document.title = this.translateText("main.title") ?? document.title;
+    document.title =
+      document.querySelector("title[data-fork-title]")?.textContent ??
+      this.translateText("main.title") ??
+      document.title;
 
     document.querySelectorAll("[data-i18n]").forEach((element) => {
       const key = element.getAttribute("data-i18n");
