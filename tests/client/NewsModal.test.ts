@@ -18,19 +18,19 @@ describe("NewsModal", () => {
     expect(modal.markdown).toBe("Loading...");
   });
 
-  it("fetches the changelog on first open only", async () => {
+  it("fetches the fork news on first open only", async () => {
     const fetchMock = vi.fn(async (_input: unknown) => ({
       ok: true,
-      text: async () => "changelog body text",
+      text: async () => "fork news body text",
     }));
     vi.stubGlobal("fetch", fetchMock);
 
     const modal = new NewsModal();
     modal.open();
 
-    await vi.waitFor(() => expect(modal.markdown).toContain("changelog body"));
+    await vi.waitFor(() => expect(modal.markdown).toContain("fork news body"));
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(String(fetchMock.mock.calls[0][0])).toContain("changelog.md");
+    expect(String(fetchMock.mock.calls[0][0])).toContain("fork-news.md");
 
     // Already initialized: re-opening must not refetch.
     modal.open();

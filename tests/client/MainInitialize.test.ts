@@ -231,9 +231,8 @@ describe("Client.initialize() booted from Main.ts module scope", () => {
   it("runs the signed-out boot: onUserMe(false) and the missing-version warn", () => {
     // renderNavVersion() === 0 branch (line 411).
     expect(warnSpy).toHaveBeenCalledWith("Game version element not found");
-    // userAuth() === false → onUserMe(false) (line 735), which flips the ad
-    // entitlement on for a signed-out web player.
-    expect(window.adsEnabled).toBe(true);
+    // The fork keeps ads disabled for signed-out web players too.
+    expect(window.adsEnabled).toBe(false);
   });
 
   it("routes a hashchange through onHashUpdate", async () => {

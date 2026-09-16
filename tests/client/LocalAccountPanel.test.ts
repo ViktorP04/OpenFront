@@ -8,12 +8,10 @@ let panel: LocalAccountPanel;
 beforeEach(async () => {
   vi.stubGlobal(
     "fetch",
-    vi
-      .fn()
-      .mockResolvedValue({
-        ok: true,
-        json: async () => ({ registrationCodeRequired: true }),
-      }),
+    vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ registrationCodeRequired: true }),
+    }),
   );
   panel = new LocalAccountPanel();
   document.body.append(panel);
