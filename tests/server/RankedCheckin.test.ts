@@ -13,11 +13,6 @@ import { mockLogger } from "../util/GameServerHarness";
 // and the match cancelled short-handed. The ranked check-in must follow the
 // same active flag the master already pushes to its workers.
 
-const CLUSTER = JSON.stringify({
-  a: { host: "blue.openfront.io", color: "blue", numWorkers: 4 },
-  b: { host: "green.openfront.io", color: "green", numWorkers: 4 },
-});
-
 function okFetch(body: unknown = {}) {
   return vi.fn(
     async () => new Response(JSON.stringify(body), { status: 200 }),
@@ -105,7 +100,9 @@ describe("RankedCheckinGate", () => {
 
 describe("rankedCheckinPass", () => {
   beforeEach(() => {
-    vi.stubEnv("CLUSTER_JSON", CLUSTER);
+    vi.stubEnv("GAME_ENV", "prod");
+    vi.stubEnv("INSTANCE_LETTER", "a");
+    vi.stubEnv("NUM_WORKERS", "4");
     vi.stubEnv("DOMAIN", "openfront.io");
     vi.stubEnv("SUBDOMAIN", "blue");
     vi.stubEnv("API_KEY", "test-key");
@@ -170,6 +167,48 @@ describe("rankedCheckinPass", () => {
       const body = JSON.parse(String((init as RequestInit).body));
       expect(body).not.toHaveProperty("version");
     }
+  });
+
+  // infra #738: the API keeps one ranked queue per SITE, and checks that
+  // site's registry that the server is open before assigning. The site is
+  // the one this server registers under for the cluster check-in.
+  it("carries the site it registers under", async () => {
+    vi.stubEnv("SITE_HOST", "openfront.io");
+    const fetchFn = okFetch({ assignment: null });
+    const deps = makeDeps(() => true, fetchFn);
+    const gate = new RankedCheckinGate(deps.isActive, deps.log);
+
+    await rankedCheckinPass("1v1", gate, deps);
+
+    const [, init] = vi.mocked(fetchFn).mock.calls[0];
+    const body = JSON.parse(String((init as RequestInit).body));
+    expect(body.site).toBe("openfront.io");
+  });
+
+  it("falls back to its own public host as the site on a standalone deploy", async () => {
+    const fetchFn = okFetch({ assignment: null });
+    const deps = makeDeps(() => true, fetchFn);
+    const gate = new RankedCheckinGate(deps.isActive, deps.log);
+
+    await rankedCheckinPass("1v1", gate, deps);
+
+    const [, init] = vi.mocked(fetchFn).mock.calls[0];
+    const body = JSON.parse(String((init as RequestInit).body));
+    expect(body.site).toBe("blue.openfront.io");
+  });
+
+  it("omits the site when it is not a name the API accepts", async () => {
+    // A malformed site is a 400 from the API, not "no site".
+    vi.stubEnv("SITE_HOST", "localhost:9000");
+    const fetchFn = okFetch({ assignment: null });
+    const deps = makeDeps(() => true, fetchFn);
+    const gate = new RankedCheckinGate(deps.isActive, deps.log);
+
+    await rankedCheckinPass("1v1", gate, deps);
+
+    const [, init] = vi.mocked(fetchFn).mock.calls[0];
+    const body = JSON.parse(String((init as RequestInit).body));
+    expect(body).not.toHaveProperty("site");
   });
 
   it("does not open the long poll while the deployment is draining", async () => {

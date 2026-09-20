@@ -20,6 +20,7 @@ export type WorkerMessageType =
   | "game_error"
   | "player_actions"
   | "player_actions_result"
+  | "player_actions_error"
   | "player_buildables"
   | "player_buildables_result"
   | "player_profile"
@@ -81,6 +82,11 @@ export interface PlayerActionsMessage extends BaseWorkerMessage {
 export interface PlayerActionsResultMessage extends BaseWorkerMessage {
   type: "player_actions_result";
   result: PlayerActions;
+}
+
+export interface PlayerActionsErrorMessage extends BaseWorkerMessage {
+  type: "player_actions_error";
+  error: string;
 }
 
 export interface PlayerBuildablesMessage extends BaseWorkerMessage {
@@ -157,6 +163,7 @@ export type WorkerMessage =
   | GameUpdateBatchMessage
   | GameErrorMessage
   | PlayerActionsResultMessage
+  | PlayerActionsErrorMessage
   | PlayerBuildablesResultMessage
   | PlayerProfileResultMessage
   | PlayerBorderTilesResultMessage

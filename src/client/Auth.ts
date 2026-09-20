@@ -320,13 +320,23 @@ export async function isLoggedIn(): Promise<boolean> {
   return userAuthResult !== false;
 }
 
-// True when the in-memory session still belongs to the given JWT subject.
-// Lets callers of authenticated endpoints discard a response that arrived
-// after a logout or session change invalidated the request's session.
+// True when the in-memory session still belongs to the given player. Lets
+// callers of authenticated endpoints discard a response that arrived after a
+// logout or session change invalidated the request's session.
+//
+// `sub` is the dashed UUID TokenPayloadSchema transforms the claim into --
+// what every caller holds -- while the JWT carries the base64url form, so the
+// two have to be brought to the same encoding before comparing. Converting
+// here rather than at the call sites means no caller has to know which
+// encoding this wants.
 export function isSessionActive(sub: string): boolean {
   if (__jwt === null) return false;
   try {
-    return decodeJwt(__jwt).sub === sub;
+    const raw = decodeJwt(__jwt).sub;
+    if (raw === undefined) return false;
+    // Throws on a subject that is not a base64url UUID, which the catch
+    // below answers the same way as an undecodable JWT: not this session.
+    return base64urlToUuid(raw) === sub;
   } catch {
     return false;
   }
@@ -491,7 +501,7 @@ async function doRefreshJwt(): Promise<void> {
   }
 }
 
-// Total mapping from the shell's three ticket failures. Kept exhaustive by
+// Total mapping from the shell's six ticket failures. Kept exhaustive by
 // the parameter type: adding a SteamTicketFailure value fails the build here.
 // The `default` is not reachable through that exhaustive type, but the shell
 // lives in a separate repo and the bridge shape reaches us as `unknown` at
@@ -509,6 +519,19 @@ function ticketReason(
       return "steam-wedged";
     case "error":
       return "steam-error";
+    case "needs-account":
+      return "needs-account";
+    case "ticket-rejected":
+      // A completed 401 from the status check. The player's own /auth/steam
+      // call would be refused identically, so this is the same situation the
+      // web path already has a message for.
+      return "steam-ticket-rejected";
+    case "api-unreachable":
+      // The shell could not reach OUR api to ask about the account -- nothing
+      // to do with Steam, and nothing the player does to their account
+      // changes it. "Can't reach OpenFront. Check your connection." is
+      // exactly right, and `network` already says that.
+      return "network";
     default:
       return "steam-error";
   }
@@ -621,9 +644,8 @@ export async function reauthAfterCrazyGamesChange(): Promise<UserAuth> {
 // share one exchange rather than race on __jwt. A refresh already in flight
 // is allowed to settle first so its stale result cannot satisfy the retry.
 //
-// There is no automatic retry anywhere: a wedged Steam session does not
-// self-heal (only a Steam restart cleared it in both observed cases), so a
-// silent retry would buy nothing and delay the message.
+// DesktopSessionRecovery also calls this when connectivity returns. Failures
+// remain actionable; there is no timer repeatedly retrying a wedged session.
 let __steamRetryPromise: Promise<UserAuth> | null = null;
 export async function retrySteamSignIn(): Promise<UserAuth> {
   __steamRetryPromise ??= (async () => {

@@ -63,7 +63,8 @@ startup script refuses a mismatched account mode or explicitly overridden revisi
 ```dotenv
 DOMAIN=openfront.viktorp04.com
 LOCAL_ACCOUNT_ORIGIN=https://openfront.viktorp04.com
-CLUSTER_JSON={"a":{"host":"openfront.viktorp04.com","color":"blue","numWorkers":2}}
+INSTANCE_LETTER=a
+NUM_WORKERS=2
 OPENFRONT_ACCOUNTS_VOLUME=openfront-accounts
 ```
 

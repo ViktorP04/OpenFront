@@ -87,6 +87,9 @@ COPY src ./src
 COPY zbin ./zbin
 
 
+ARG GIT_COMMIT=unknown
+RUN echo "$GIT_COMMIT" > static/commit.txt
+ENV GIT_COMMIT="$GIT_COMMIT"
 COPY scripts/deploySmoke.mjs ./scripts/deploySmoke.mjs
 COPY deploy/start.sh /usr/local/bin/start.sh
 RUN chmod +x /usr/local/bin/start.sh

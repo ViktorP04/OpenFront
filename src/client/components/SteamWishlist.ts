@@ -125,7 +125,7 @@ export class SteamWishlist extends LitElement {
                 height=${WIDGET_HEIGHT}
                 style="transform: scale(${scale})"
                 src=${steamWidgetUrl(this.campaign)}
-                title=${translateText("steam_wishlist.title")}
+                title=${translateText("steam_wishlist.buy_on_steam")}
                 loading="lazy"
                 scrolling="no"
               ></iframe>

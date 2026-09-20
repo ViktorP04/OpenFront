@@ -18,6 +18,7 @@ import { GameEnv } from "../core/configuration/Config";
 import { UserSettings } from "../core/game/UserSettings";
 import "./AccountModal";
 import "./AccountSettingsModal";
+import { syncAchievements } from "./AchievementSignal";
 import { adGatekeeper } from "./AdGatekeeper";
 import { loadAdmiral, onAdmiralMeasured } from "./Admiral";
 import { getUserMe, invalidateUserMe } from "./Api";
@@ -49,6 +50,7 @@ import {
   resumePendingCreatorCode,
 } from "./CreatorCode";
 import { desktopPresence, type PresencePayload } from "./DesktopPresence";
+import { subscribeDesktopSessionRecovery } from "./DesktopSessionRecovery";
 import {
   desktopUpdate,
   isDesktopShell,
@@ -102,6 +104,9 @@ import {
 } from "./ServerList";
 import "./SinglePlayerModal";
 import { SinglePlayerModal } from "./SinglePlayerModal";
+import { steamHandoffMode } from "./SteamHandoff";
+import "./SteamHandoffModal";
+import { SteamHandoffModal } from "./SteamHandoffModal";
 import {
   isSteamLinkHash,
   parseSteamLinkToken,
@@ -131,6 +136,7 @@ import { UsernameInput } from "./UsernameInput";
 import {
   apexPathFor,
   currentPagePath,
+  flushReloadToast,
   homeHref,
   incrementGamesPlayed,
   presenceMapKey,
@@ -285,6 +291,8 @@ class Client {
   private matchmakingModal: MatchmakingModal;
   private rewardsModal: RewardsModal;
   private steamLinkModal: SteamLinkModal;
+  private steamHandoffModal: SteamHandoffModal | null = null;
+  private steamHandoffDeclinedFor: string | null = null;
   private mostRecentJoinEvent: number;
   // A join the player has committed to but that has not reached a lobbyHandle
   // yet. `lobbyHandle` alone does not cover this: a public-lobby join awaits
@@ -320,6 +328,8 @@ class Client {
     // URL, so take the value while it is still the URL we were served at.
     // See PagePin.ts.
     capturePagePin();
+
+    flushReloadToast();
 
     // A store referral banner / account "copy link" hands out `/c/<code>`.
     // There's nothing to open here yet -- the code only does anything once
@@ -645,6 +655,8 @@ class Client {
       console.warn("Steam link modal element not found");
     }
 
+    this.steamHandoffModal = document.querySelector("steam-handoff-modal");
+
     const onUserMe = async (userMeResponse: UserMeResponse | false) => {
       if (crazyGamesSDK.isOnCrazyGames()) {
         void updateCrazyGamesNavButton();
@@ -790,10 +802,31 @@ class Client {
     // nav and re-disable ads, so a response is only applied while the session
     // it was fetched under is still current.
     let authGeneration = 0;
+
+    // Catches anything the post-game poll missed: a player who quit before the
+    // game was archived, an earlier failed push, or a player who has just
+    // linked a platform account and has a whole history to hand over.
+    //
+    // Hung off every established session rather than off boot alone, because
+    // a session can arrive later than boot: recovered from the status bar, or
+    // signed into mid-session through the link modal -- the very case that
+    // last bullet names. Keyed by player id so it runs once per session and
+    // not again on each later profile refresh, while still re-running when a
+    // different account signs in (the record is per-player too).
+    let achievementsSyncedFor: string | null = null;
+    const reconcileAchievements = (userMeResponse: UserMeResponse | false) => {
+      if (userMeResponse === false) return;
+      const playerId = userMeResponse.player.publicId;
+      if (achievementsSyncedFor === playerId) return;
+      achievementsSyncedFor = playerId;
+      void syncAchievements();
+    };
+
     const applyUserMe =
       (generation: number) => (userMeResponse: UserMeResponse | false) => {
         if (generation !== authGeneration) return;
         void onUserMe(userMeResponse);
+        reconcileAchievements(userMeResponse);
       };
 
     // A session dropped in the background — an expired refresh token, a 401 on
@@ -807,12 +840,24 @@ class Client {
       void onUserMe(false);
     });
 
+    // Register before initial auth settles: the status bar may already offer
+    // Retry while startup is still waiting for its first session.
+    subscribeDesktopSessionRecovery(async () => {
+      invalidateUserMe();
+      snapshotLapseMarker();
+      const generation = ++authGeneration;
+      const result = await retrySteamSignIn();
+      applyUserMe(generation)(result === false ? false : await getUserMe());
+    });
+
+    const initialAuthGeneration = authGeneration;
     if ((await userAuth()) === false) {
       // Not logged in: apply the signed-out profile directly.
-      onUserMe(false);
+      applyUserMe(initialAuthGeneration)(false);
     } else {
       // JWT appears valid: fetch the profile and apply it if still current.
-      getUserMe().then(applyUserMe(authGeneration));
+      // applyUserMe carries the achievements reconcile.
+      getUserMe().then(applyUserMe(initialAuthGeneration));
     }
 
     document.addEventListener("local-achievements-updated", () => {
@@ -832,11 +877,6 @@ class Client {
       );
     });
 
-    // The desktop status bar's Retry. Orchestrated here rather than in the
-    // bar because a successful sign-in also has to refresh userMe, the nav
-    // account button and the cached profile -- the same reason the
-    // CrazyGames listener above lives here. The authGeneration guard means a
-    // response that arrives after another auth change cannot be applied.
     // Subscribe to the bridge directly rather than to the status bar's
     // re-broadcast. The bar subscribes when its element upgrades and the
     // bridge replays the current state immediately, so that event fires long
@@ -848,17 +888,6 @@ class Client {
     // bar's own subscription.
     desktopUpdate()?.subscribe((state) => {
       this.desktopUpdateState = state;
-    });
-
-    document.addEventListener("desktop-session-retry", () => {
-      invalidateUserMe();
-      snapshotLapseMarker();
-      const generation = authGeneration;
-      retrySteamSignIn().then((result) =>
-        result === false
-          ? applyUserMe(generation)(false)
-          : getUserMe().then(applyUserMe(generation)),
-      );
     });
 
     this.hostModal = document.querySelector(
@@ -1075,6 +1104,9 @@ class Client {
     // and the token itself is opaque, so no decoding is needed or expected.
     const steamLinkToken = parseSteamLinkToken(hash);
     if (steamLinkToken) {
+      // Only the token form: the desktop gate opened it in this browser, so
+      // the Steam build is on this machine. A typed code can come from a phone.
+      this.userSettings.markSteamBuildSeen();
       strip();
       void this.steamLinkModal?.openWithToken(steamLinkToken);
       return;
@@ -1113,6 +1145,17 @@ class Client {
     const lobbyId =
       pathMatch && GAME_ID_REGEX.test(pathMatch[1]) ? pathMatch[1] : null;
     if (lobbyId) {
+      const handoff =
+        this.steamHandoffDeclinedFor === lobbyId
+          ? "none"
+          : steamHandoffMode(this.userSettings, window.location.search);
+      if (handoff !== "none" && this.steamHandoffModal !== null) {
+        this.steamHandoffModal.offer(lobbyId, handoff, () => {
+          this.steamHandoffDeclinedFor = lobbyId;
+          void this.handleUrl();
+        });
+        return;
+      }
       // Joining needs the API's server list (multi-server v2): the id's
       // letter names the game's server there. No version check: joining an
       // existing game is not starting something new, and the id's letter
@@ -1462,6 +1505,7 @@ class Client {
         "leaderboard-button",
         "token-login",
         "steam-link-modal",
+        "steam-handoff-modal",
         "matchmaking-modal",
         "clan-modal",
         "account-settings-modal",
@@ -1715,7 +1759,10 @@ class Client {
 
     if (this.joinModal.isOpen()) {
       this.joinModal.close();
-      if (event?.detail.cause === "full-lobby") {
+      if (
+        event?.detail.cause === "full-lobby" ||
+        event?.detail.cause === "game-started"
+      ) {
         window.dispatchEvent(
           new CustomEvent("show-message", {
             detail: {

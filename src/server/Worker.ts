@@ -745,6 +745,7 @@ export async function startWorker() {
           friends,
           clientMsg.spectator === true,
           trusted,
+          clientMsg.platform,
         );
 
         const joinResult = gm.joinClient(client, clientMsg.gameID);
@@ -782,6 +783,12 @@ export async function startWorker() {
             workerId,
           });
           ws.close(CloseCode.LobbyFull, CloseReason.LobbyFull);
+        } else if (joinResult === "started") {
+          log.info(`client joined game ${clientMsg.gameID} after it started`, {
+            gameID: clientMsg.gameID,
+            workerId,
+          });
+          ws.close(CloseCode.GameStarted, CloseReason.GameStarted);
         }
 
         // Handle other message types

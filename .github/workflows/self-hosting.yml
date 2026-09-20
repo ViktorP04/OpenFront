@@ -27,7 +27,8 @@ jobs:
           docker run -d --name openfront-selfhost-test -p 127.0.0.1:9000:80 \
             -v openfront-selfhost-test:/data/accounts \
             -e GAME_ENV=prod -e DOMAIN=localhost \
-            -e 'CLUSTER_JSON={"a":{"host":"localhost","color":"blue","numWorkers":2}}' \
+            -e INSTANCE_LETTER=a \
+            -e NUM_WORKERS=2 \
             -e LOCAL_ACCOUNTS=true -e LOCAL_ACCOUNT_ORIGIN=http://localhost:9000 \
             -e LOCAL_ACCOUNT_DATA_DIR=/data/accounts \
             -e TURNSTILE_SITE_KEY=1x00000000000000000000AA \

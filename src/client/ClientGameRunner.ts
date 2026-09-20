@@ -311,10 +311,10 @@ export function joinLobby(
         });
     }
     if (message.type === "error") {
-      if (message.error === "full-lobby") {
+      if (message.error === "full-lobby" || message.error === "game-started") {
         document.dispatchEvent(
           new CustomEvent("leave-lobby", {
-            detail: { lobby: lobbyConfig.gameID, cause: "full-lobby" },
+            detail: { lobby: lobbyConfig.gameID, cause: message.error },
             bubbles: true,
             composed: true,
           }),
@@ -746,8 +746,6 @@ async function createClientGame(
 
     const graphicsListenerAbort = new AbortController();
 
-    view.setShowPatterns(userSettings.territoryPatterns());
-
     const mapLayerController = new MapLayerController(
       view,
       gameMap,
@@ -756,12 +754,6 @@ async function createClientGame(
       lobbyConfig.gameStartInfo.config.gameMapSize,
       mapLoader,
       graphicsListenerAbort.signal,
-    );
-
-    globalThis.addEventListener(
-      `${USER_SETTINGS_CHANGED_EVENT}:settings.territoryPatterns`,
-      (e) => view.setShowPatterns((e as CustomEvent<string>).detail === "true"),
-      { signal: graphicsListenerAbort.signal },
     );
 
     // Re-resolve names drawn on the map when the anonymous-names setting toggles
@@ -794,9 +786,23 @@ async function createClientGame(
     };
     // Re-apply render settings, then re-theme and recolor players, on a
     // graphics-override change (covers a theme switch such as colorblind mode).
+    // Flag opacity is a render setting, not visibility, so it's left out.
+    const cosmeticVisibilityKey = (): string =>
+      JSON.stringify({
+        ...userSettings.graphicsOverrides().cosmetics,
+        flagOpacity: undefined,
+      });
+    let cosmeticVisibility = cosmeticVisibilityKey();
     const onGraphicsChanged = (): void => {
       regenerateRenderSettings();
       refreshDerivedGraphics();
+      // Re-resolving every player's cosmetics is heavier than the rest, so
+      // only do it when the cosmetics visibility itself changed.
+      const nextCosmeticVisibility = cosmeticVisibilityKey();
+      if (nextCosmeticVisibility !== cosmeticVisibility) {
+        cosmeticVisibility = nextCosmeticVisibility;
+        webglBuilder.refreshCosmetics(gameView);
+      }
     };
     // No initial regenerate or terrain rebuild needed — the renderer was
     // constructed with the resolved settings above, so the terrain texture
@@ -1150,6 +1156,13 @@ export class ClientGameRunner {
   public stop() {
     this.soundManager.dispose();
     this.graphicsListenerAbort?.abort();
+    // Detach the input handler's window/canvas listeners and its EventBus
+    // subscription. Nothing else ever did, and the bus is created once per
+    // page, so a handler from a finished game kept translating keys into
+    // events that the next game receives, and joining another game without a
+    // page reload stacked a second live handler on top. Idempotent, like the
+    // disposals around it.
+    this.input.destroy();
     this.disposeRenderer?.();
     if (!this.isActive) return;
 
@@ -1197,18 +1210,23 @@ export class ClientGameRunner {
       if (myPlayer === null) return;
       this.myPlayer = myPlayer;
     }
-    this.myPlayer.actions(tile, [UnitType.TransportShip]).then((actions) => {
-      if (actions.canAttack) {
-        this.eventBus.emit(
-          new SendAttackIntentEvent(
-            this.gameView.owner(tile).id(),
-            this.myPlayer!.troops() * this.renderer.uiState.attackRatio,
-          ),
-        );
-      } else if (this.canAutoBoat(actions.buildableUnits, tile)) {
-        this.sendBoatAttackIntent(tile);
-      }
-    });
+    this.myPlayer
+      .actions(tile, [UnitType.TransportShip])
+      .then((actions) => {
+        if (actions.canAttack) {
+          this.eventBus.emit(
+            new SendAttackIntentEvent(
+              this.gameView.owner(tile).id(),
+              this.myPlayer!.troops() * this.renderer.uiState.attackRatio,
+            ),
+          );
+        } else if (this.canAutoBoat(actions.buildableUnits, tile)) {
+          this.sendBoatAttackIntent(tile);
+        }
+      })
+      .catch((error) => {
+        console.warn("Failed to check boat attack actions:", error);
+      });
   }
 
   private autoUpgradeEvent(event: AutoUpgradeEvent) {
@@ -1241,80 +1259,84 @@ export class ClientGameRunner {
   }
 
   private findAndUpgradeNearestBuilding(clickedTile: TileRef) {
-    this.myPlayer!.actions(clickedTile, Structures.types).then((actions) => {
-      const upgradeUnits: {
-        unitId: number;
-        unitType: UnitType;
-        distance: number;
-      }[] = [];
+    this.myPlayer!.actions(clickedTile, Structures.types)
+      .then((actions) => {
+        const upgradeUnits: {
+          unitId: number;
+          unitType: UnitType;
+          distance: number;
+        }[] = [];
 
-      for (const bu of actions.buildableUnits) {
-        if (bu.canUpgrade !== false) {
-          const existingUnit = this.gameView
-            .units()
-            .find((unit) => unit.id() === bu.canUpgrade);
-          if (existingUnit) {
-            const distance = this.gameView.manhattanDist(
-              clickedTile,
-              existingUnit.tile(),
-            );
+        for (const bu of actions.buildableUnits) {
+          if (bu.canUpgrade !== false) {
+            const existingUnit = this.gameView
+              .units()
+              .find((unit) => unit.id() === bu.canUpgrade);
+            if (existingUnit) {
+              const distance = this.gameView.manhattanDist(
+                clickedTile,
+                existingUnit.tile(),
+              );
 
-            upgradeUnits.push({
-              unitId: bu.canUpgrade,
-              unitType: bu.type,
-              distance: distance,
-            });
-          }
-        }
-      }
-
-      if (upgradeUnits.length === 0) {
-        return;
-      }
-
-      // Upgrade the closest affordable building. But if there's an unaffordable
-      // building (any type) that's closer to clickedTile than the best candidate,
-      // do nothing — the player clicked on that unaffordable building intending
-      // to upgrade it, and we must not spend their gold on a different building.
-      const bestUpgrade = findClosestBy(upgradeUnits, (u) => u.distance);
-      if (!bestUpgrade) {
-        return;
-      }
-
-      // Check if any unaffordable building is closer than bestUpgrade
-      for (const bu of actions.buildableUnits) {
-        if (bu.canUpgrade === false && bu.type !== bestUpgrade.unitType) {
-          const myPlayerID = this.myPlayer!.id();
-          const closestOfType = this.gameView
-            .nearbyUnits(
-              clickedTile,
-              this.gameView.config().structureMinDist(),
-              bu.type,
-            )
-            .filter(({ unit }) => unit.owner().id() === myPlayerID)
-            .sort((a, b) => a.distSquared - b.distSquared)[0];
-
-          if (closestOfType) {
-            const dist = this.gameView.manhattanDist(
-              clickedTile,
-              closestOfType.unit.tile(),
-            );
-            if (dist <= bestUpgrade.distance) {
-              // An unaffordable building of type bu.type is at least as close
-              // as bestUpgrade — player clicked on it, not on bestUpgrade.
-              return;
+              upgradeUnits.push({
+                unitId: bu.canUpgrade,
+                unitType: bu.type,
+                distance: distance,
+              });
             }
           }
         }
-      }
 
-      this.eventBus.emit(
-        new SendUpgradeStructureIntentEvent(
-          bestUpgrade.unitId,
-          bestUpgrade.unitType,
-        ),
-      );
-    });
+        if (upgradeUnits.length === 0) {
+          return;
+        }
+
+        // Upgrade the closest affordable building. But if there's an unaffordable
+        // building (any type) that's closer to clickedTile than the best candidate,
+        // do nothing — the player clicked on that unaffordable building intending
+        // to upgrade it, and we must not spend their gold on a different building.
+        const bestUpgrade = findClosestBy(upgradeUnits, (u) => u.distance);
+        if (!bestUpgrade) {
+          return;
+        }
+
+        // Check if any unaffordable building is closer than bestUpgrade
+        for (const bu of actions.buildableUnits) {
+          if (bu.canUpgrade === false && bu.type !== bestUpgrade.unitType) {
+            const myPlayerID = this.myPlayer!.id();
+            const closestOfType = this.gameView
+              .nearbyUnits(
+                clickedTile,
+                this.gameView.config().structureMinDist(),
+                bu.type,
+              )
+              .filter(({ unit }) => unit.owner().id() === myPlayerID)
+              .sort((a, b) => a.distSquared - b.distSquared)[0];
+
+            if (closestOfType) {
+              const dist = this.gameView.manhattanDist(
+                clickedTile,
+                closestOfType.unit.tile(),
+              );
+              if (dist <= bestUpgrade.distance) {
+                // An unaffordable building of type bu.type is at least as close
+                // as bestUpgrade — player clicked on it, not on bestUpgrade.
+                return;
+              }
+            }
+          }
+        }
+
+        this.eventBus.emit(
+          new SendUpgradeStructureIntentEvent(
+            bestUpgrade.unitId,
+            bestUpgrade.unitType,
+          ),
+        );
+      })
+      .catch((error) => {
+        console.warn("Failed to check structure upgrade actions:", error);
+      });
   }
 
   private doBoatAttackUnderCursor(): void {
@@ -1356,16 +1378,21 @@ export class ClientGameRunner {
       this.myPlayer = myPlayer;
     }
 
-    this.myPlayer.actions(tile, null).then((actions) => {
-      if (actions.canAttack) {
-        this.eventBus.emit(
-          new SendAttackIntentEvent(
-            this.gameView.owner(tile).id(),
-            this.myPlayer!.troops() * this.renderer.uiState.attackRatio,
-          ),
-        );
-      }
-    });
+    this.myPlayer
+      .actions(tile, null)
+      .then((actions) => {
+        if (actions.canAttack) {
+          this.eventBus.emit(
+            new SendAttackIntentEvent(
+              this.gameView.owner(tile).id(),
+              this.myPlayer!.troops() * this.renderer.uiState.attackRatio,
+            ),
+          );
+        }
+      })
+      .catch((error) => {
+        console.warn("Failed to check ground attack actions:", error);
+      });
   }
 
   private doRetaliateAttackMostRecent(): void {
@@ -1420,15 +1447,20 @@ export class ClientGameRunner {
     if (!tileOwner.isPlayer()) return;
     const recipient = tileOwner as PlayerView;
 
-    myPlayer.actions(tile).then((actions) => {
-      if (actions.interaction?.canSendAllianceRequest) {
-        this.eventBus.emit(
-          new SendAllianceRequestIntentEvent(myPlayer, recipient),
-        );
-      } else if (actions.interaction?.allianceInfo?.canExtend) {
-        this.eventBus.emit(new SendAllianceExtensionIntentEvent(recipient));
-      }
-    });
+    myPlayer
+      .actions(tile)
+      .then((actions) => {
+        if (actions.interaction?.canSendAllianceRequest) {
+          this.eventBus.emit(
+            new SendAllianceRequestIntentEvent(myPlayer, recipient),
+          );
+        } else if (actions.interaction?.allianceInfo?.canExtend) {
+          this.eventBus.emit(new SendAllianceExtensionIntentEvent(recipient));
+        }
+      })
+      .catch((error) => {
+        console.warn("Failed to check alliance actions:", error);
+      });
   }
 
   private doBreakAllianceUnderCursor(): void {
@@ -1448,13 +1480,18 @@ export class ClientGameRunner {
     if (!tileOwner.isPlayer()) return;
     const recipient = tileOwner as PlayerView;
 
-    myPlayer.actions(tile).then((actions) => {
-      if (actions.interaction?.canBreakAlliance) {
-        this.eventBus.emit(
-          new SendBreakAllianceIntentEvent(myPlayer, recipient),
-        );
-      }
-    });
+    myPlayer
+      .actions(tile)
+      .then((actions) => {
+        if (actions.interaction?.canBreakAlliance) {
+          this.eventBus.emit(
+            new SendBreakAllianceIntentEvent(myPlayer, recipient),
+          );
+        }
+      })
+      .catch((error) => {
+        console.warn("Failed to check alliance actions:", error);
+      });
   }
 
   private getTileUnderCursor(): TileRef | null {

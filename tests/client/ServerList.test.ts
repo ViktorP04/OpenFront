@@ -9,6 +9,7 @@ import {
   MANUAL_RETRY_COOLDOWN_MS,
   manualRetryAvailable,
   redirectToGameVersion,
+  refreshServerList,
   reloadWouldRescue,
   resetServerList,
   retryDelayMs,
@@ -61,8 +62,8 @@ function setBootstrap(overrides: Record<string, unknown> = {}) {
   (window as any).BOOTSTRAP_CONFIG = {
     gameEnv: "prod",
     cluster: {
-      a: { host: "blue.openfront.io", color: "blue", numWorkers: 2 },
-      b: { host: "green.openfront.io", color: "green", numWorkers: 2 },
+      a: { host: "blue.openfront.io", numWorkers: 2 },
+      b: { host: "green.openfront.io", numWorkers: 2 },
     },
     instanceLetter: "a",
     turnstileSiteKey: "x",
@@ -597,6 +598,30 @@ describe("backend reachability", () => {
       document.removeEventListener("backend-reachability", listener);
     }
   });
+
+  // Unlike a 404, a 5xx says nothing behind the API can be trusted to work
+  // either, and a static page it leaves without a list has no server to dial.
+  it("counts a 5xx towards the outage, like an attempt nothing answered", async () => {
+    vi.useFakeTimers();
+    fetchMock.mockImplementation(async () =>
+      jsonResponse({ error: "bad gateway" }, 502),
+    );
+    expect(await ensureServerList()).toBe("fallback");
+    expect(backendReachable()).toBe(false);
+    expect(backendUnreachableConfirmed()).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(RETRY_MS);
+    expect(await ensureServerList()).toBe("fallback");
+    expect(backendUnreachableConfirmed()).toBe(true);
+
+    fetchMock.mockImplementation(async () =>
+      jsonResponse({ error: "unknown site" }, 404),
+    );
+    await vi.advanceTimersByTimeAsync(RETRY_MS * 2);
+    expect(await ensureServerList()).toBe("fallback");
+    expect(backendReachable()).toBe(true);
+    expect(backendUnreachableConfirmed()).toBe(false);
+  });
 });
 
 /**
@@ -772,6 +797,139 @@ describe("retryServerList", () => {
     });
     expect(await retryServerList()).toBe("fallback");
     expect(backendReachable()).toBe(false);
+  });
+});
+
+// What the lobby slot's Retry dials from. ensureServerList answers from the
+// cached list at once, and after a failure that list may still name the
+// server that just died.
+describe("refreshServerList", () => {
+  const MOVED_LIST = {
+    latest: OWN,
+    servers: {
+      e: {
+        host: "falk2-c.openfront.io",
+        numWorkers: 16,
+        version: OWN,
+        state: "open",
+      },
+    },
+  };
+
+  it("fetches before it answers, where ensureServerList answers from the cache", async () => {
+    expect(await ensureServerList()).toBe("api");
+    expect(ClientEnv.serverWsBase()).toBe("wss://falk2-b.openfront.io");
+
+    fetchMock.mockImplementation(async () => jsonResponse(MOVED_LIST));
+    expect(await ensureServerList()).toBe("api");
+    expect(ClientEnv.serverWsBase()).toBe("wss://falk2-b.openfront.io");
+
+    expect(await refreshServerList()).toBe("api");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(ClientEnv.serverWsBase()).toBe("wss://falk2-c.openfront.io");
+  });
+
+  // The attempt is the heartbeat's, so nothing here goes through
+  // retryServerList: it is fetchOnce joining that attempt that holds this.
+  it("waits for an attempt someone else has out rather than answering early", async () => {
+    vi.useFakeTimers();
+    expect(await retryServerList()).toBe("api");
+
+    let release: (r: Response) => void = () => {};
+    fetchMock.mockImplementation(
+      async () =>
+        await new Promise<Response>((resolve) => {
+          release = resolve;
+        }),
+    );
+    startServerListPolling();
+    expect(attemptInFlight()).toBe(true);
+
+    let settled = false;
+    const refreshed = refreshServerList().then((status) => {
+      settled = true;
+      return status;
+    });
+    await vi.advanceTimersByTimeAsync(100);
+    expect(settled).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    release(jsonResponse(MOVED_LIST));
+    expect(await refreshed).toBe("api");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(ClientEnv.serverWsBase()).toBe("wss://falk2-c.openfront.io");
+  });
+
+  // The manual-retry clock belongs to the other two affordances, and a press
+  // of one of them must not turn this into a dial from the cache: on the web
+  // a refused multiplayer click is such a press (reportMultiplayerRefusal),
+  // and the lobby slot's Retry can land inside its floor with nothing in
+  // flight, where retryServerList would hand back the settled result.
+  it("fetches inside another press's floor and cooldown when nothing is in flight", async () => {
+    vi.useFakeTimers();
+    expect(await retryServerList()).toBe("api");
+    expect(ClientEnv.serverWsBase()).toBe("wss://falk2-b.openfront.io");
+    await vi.advanceTimersByTimeAsync(500);
+
+    fetchMock.mockImplementation(async () => jsonResponse(MOVED_LIST));
+    expect(await refreshServerList()).toBe("api");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(ClientEnv.serverWsBase()).toBe("wss://falk2-c.openfront.io");
+  });
+
+  // ...and the converse: it does not stamp that clock, so the refused-click
+  // probe is not held for a press it did not make.
+  it("leaves the manual-retry clock to the buttons that share it", async () => {
+    vi.useFakeTimers();
+    expect(await refreshServerList()).toBe("api");
+    expect(manualRetryAvailable()).toBe(true);
+  });
+
+  it("has a floor of its own, inside which a second call joins the first", async () => {
+    vi.useFakeTimers();
+    expect(await refreshServerList()).toBe("api");
+    expect(await refreshServerList()).toBe("api");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(await refreshServerList()).toBe("api");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("counts a failure towards the outage, and hands it back inside the floor", async () => {
+    vi.useFakeTimers();
+    expect(await ensureServerList()).toBe("api");
+    fetchMock.mockRejectedValue(new TypeError("network down"));
+    expect(await refreshServerList()).toBe("api");
+    expect(backendReachable()).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    // Inside the floor the failed attempt is what a second call gets.
+    fetchMock.mockImplementation(async () => jsonResponse(MOVED_LIST));
+    expect(await refreshServerList()).toBe("api");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(ClientEnv.serverWsBase()).toBe("wss://falk2-b.openfront.io");
+
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(await refreshServerList()).toBe("api");
+    expect(backendReachable()).toBe(true);
+    expect(ClientEnv.serverWsBase()).toBe("wss://falk2-c.openfront.io");
+  });
+
+  // A person pressing a button is not a timer: the heartbeat's backoff after
+  // a failure must not turn the Retry into a dial from the cached list.
+  it("fetches inside the heartbeat's backoff after a failed attempt", async () => {
+    vi.useFakeTimers();
+    expect(await ensureServerList()).toBe("api");
+    fetchMock.mockRejectedValueOnce(new TypeError("network down"));
+    expect(await retryServerList()).toBe("api");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(2_000);
+
+    fetchMock.mockImplementation(async () => jsonResponse(MOVED_LIST));
+    expect(await refreshServerList()).toBe("api");
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(ClientEnv.serverWsBase()).toBe("wss://falk2-c.openfront.io");
   });
 });
 
@@ -1164,7 +1322,6 @@ describe("picking between open, draining and fenced", () => {
         cluster: {
           a: {
             host: "main.server.openfront.dev",
-            color: "blue",
             numWorkers: 2,
           },
         },
@@ -1228,8 +1385,8 @@ describe("picking between open, draining and fenced", () => {
   // A server-rendered page prefers its own server (OPE-430). Before v2 the
   // page always talked to the colour that rendered it; the list's random pick
   // can send it to a sibling, and the two do not have to agree about that
-  // sibling. On dev (openfront.dev, a blue/green pair behind the apex with
-  // CLUSTER_STATE_SOURCE=apex) the registry listed both colours `open` on the
+  // sibling. On dev (openfront.dev, a blue/green pair behind the apex, then
+  // still draining by an apex colour poll) the registry listed both colours `open` on the
   // same build while the apex poll had green considering itself draining: a
   // page rendered by blue that drew green got a lobby feed reporting
   // active:false, read it as "a new version is available", and reloaded — on
@@ -1243,8 +1400,8 @@ describe("picking between open, draining and fenced", () => {
     function servedByBlue(overrides: Record<string, unknown> = {}) {
       setBootstrap({
         cluster: {
-          a: { host: BLUE, color: "blue", numWorkers: 2 },
-          b: { host: GREEN, color: "green", numWorkers: 2 },
+          a: { host: BLUE, numWorkers: 2 },
+          b: { host: GREEN, numWorkers: 2 },
         },
         instanceLetter: "a",
         serverHost: BLUE,
@@ -1555,9 +1712,9 @@ describe("reloadWouldRescue", () => {
   it("never rescues a single-server deployment whose page and game hosts differ", async () => {
     // With GAME_DOMAIN set even a standalone deployment gets a siteHost
     // that differs from its game host, while Traefik routes both names to
-    // the one container. The map having no siblings is what tells this
-    // apart from prod's apex — the same rule the server's own apex poll
-    // uses (ActiveDeployment.shouldPollApex).
+    // the one container. The site's list having no siblings is what tells
+    // this apart from prod's apex: main.openfront.dev is its own site, and
+    // its list names its one server.
     setBootstrap({
       gitCommit: OLD,
       siteHost: "main.openfront.dev",
@@ -1565,8 +1722,34 @@ describe("reloadWouldRescue", () => {
       instanceLetter: "a",
       cluster: { a: { host: "main.server.openfront.dev", numWorkers: 2 } },
     });
+    fetchMock.mockImplementation(async () =>
+      jsonResponse({
+        latest: OWN,
+        servers: {
+          a: {
+            host: "main.server.openfront.dev",
+            numWorkers: 2,
+            version: OWN,
+            state: "open",
+          },
+        },
+      }),
+    );
     expect(await ensureServerList()).toBe("fallback");
     expect(reloadWouldRescue("fallback")).toBe(false);
+  });
+
+  it("rescues a server-rendered fleet page by the list's siblings, not its own map", async () => {
+    // A server injects a map naming only itself now, so the map alone would
+    // read every fleet page as standalone. Behind the apex the list names
+    // the siblings a reload can land on.
+    setBootstrap({
+      gitCommit: OLD,
+      instanceLetter: "a",
+      cluster: { a: { host: "blue.openfront.io", numWorkers: 2 } },
+    });
+    expect(await ensureServerList()).toBe("fallback");
+    expect(reloadWouldRescue("fallback")).toBe(true);
   });
 
   it("asks no network question: this is topology, not liveness", async () => {

@@ -27,6 +27,7 @@ export enum GameMapType {
   BranchingPaths = "Branching Paths", // map-generator/assets/maps/branchingpaths/info.json
   Britannia = "Britannia", // map-generator/assets/maps/britannia/info.json
   BritanniaClassic = "Britannia Classic", // map-generator/assets/maps/britanniaclassic/info.json
+  CanaryIslands = "Canary Islands", // map-generator/assets/maps/canaryislands/info.json
   CapeCod = "Cape Cod", // map-generator/assets/maps/capecod/info.json
   Caribbean = "Caribbean", // map-generator/assets/maps/caribbean/info.json
   CaspianSea = "Caspian Sea", // map-generator/assets/maps/caspiansea/info.json
@@ -55,6 +56,7 @@ export enum GameMapType {
   Germany = "Germany", // map-generator/assets/maps/germany/info.json
   GiantWorldMap = "Giant World Map", // map-generator/assets/maps/giantworldmap/info.json
   GreatLakes = "Great Lakes", // map-generator/assets/maps/greatlakes/info.json
+  Guanabara = "Rio de Janeiro", // map-generator/assets/maps/guanabara/info.json
   GulfOfGuinea = "Gulf Of Guinea", // map-generator/assets/maps/gulfofguinea/info.json
   GulfOfMexico = "Gulf Of Mexico", // map-generator/assets/maps/gulfofmexico/info.json
   GulfOfStLawrence = "Gulf of St. Lawrence", // map-generator/assets/maps/gulfofstlawrence/info.json
@@ -87,6 +89,7 @@ export enum GameMapType {
   Montreal = "Montreal", // map-generator/assets/maps/montreal/info.json
   MoreThanLuck = "More Than Luck", // map-generator/assets/maps/morethanluck/info.json
   NewYorkCity = "New York City", // map-generator/assets/maps/newyorkcity/info.json
+  NewZealand = "New Zealand", // map-generator/assets/maps/newzealand/info.json
   NileDelta = "Nile Delta", // map-generator/assets/maps/niledelta/info.json
   NorthAmerica = "North America", // map-generator/assets/maps/northamerica/info.json
   NorthwestPassage = "Northwest Passage", // map-generator/assets/maps/northwestpassage/info.json
@@ -95,6 +98,7 @@ export enum GameMapType {
   Pangaea = "Pangaea", // map-generator/assets/maps/pangaea/info.json
   Passage = "Passage", // map-generator/assets/maps/passage/info.json
   Pluto = "Pluto", // map-generator/assets/maps/pluto/info.json
+  PulicatLake = "Pulicat Lake", // map-generator/assets/maps/pulicatlake/info.json
   QingChina = "Qing China", // map-generator/assets/maps/qingchina/info.json
   Russia = "Russia", // map-generator/assets/maps/russia/info.json
   SanFrancisco = "San Francisco", // map-generator/assets/maps/sanfrancisco/info.json
@@ -282,7 +286,7 @@ export const maps: readonly MapInfo[] = [
     type: GameMapType.Alps,
     translationKey: "map.alps",
     categories: ["europe"],
-    multiplayerFrequency: 4,
+    multiplayerFrequency: 8,
     ffaFrequency: -1,
     teamFrequency: -1,
     specialFrequency: -1,
@@ -536,6 +540,18 @@ export const maps: readonly MapInfo[] = [
     specialFrequency: -1,
     defaultNationCount: 23,
     themes: ["europe"],
+  },
+  {
+    id: "CanaryIslands",
+    type: GameMapType.CanaryIslands,
+    translationKey: "map.canaryislands",
+    categories: ["new", "africa"],
+    multiplayerFrequency: 3,
+    ffaFrequency: -1,
+    teamFrequency: 10,
+    specialFrequency: -1,
+    defaultNationCount: 14,
+    themes: ["africa"],
   },
   {
     id: "CapeCod",
@@ -1286,6 +1302,17 @@ export const maps: readonly MapInfo[] = [
     themes: ["north_america"],
   },
   {
+    id: "Guanabara",
+    type: GameMapType.Guanabara,
+    translationKey: "map.guanabara",
+    categories: ["south_america"],
+    multiplayerFrequency: 5,
+    ffaFrequency: -1,
+    teamFrequency: -1,
+    specialFrequency: -1,
+    defaultNationCount: 30,
+  },
+  {
     id: "GulfOfGuinea",
     type: GameMapType.GulfOfGuinea,
     translationKey: "map.gulfofguinea",
@@ -1812,6 +1839,18 @@ export const maps: readonly MapInfo[] = [
     themes: ["north_america"],
   },
   {
+    id: "NewZealand",
+    type: GameMapType.NewZealand,
+    translationKey: "map.newzealand",
+    categories: ["new", "oceania"],
+    multiplayerFrequency: 5,
+    ffaFrequency: -1,
+    teamFrequency: -1,
+    specialFrequency: -1,
+    defaultNationCount: 20,
+    themes: ["oceania"],
+  },
+  {
     id: "NileDelta",
     type: GameMapType.NileDelta,
     translationKey: "map.niledelta",
@@ -1904,6 +1943,19 @@ export const maps: readonly MapInfo[] = [
     specialFrequency: -1,
     defaultNationCount: 16,
     specialTeamCount: 2,
+  },
+  {
+    id: "PulicatLake",
+    type: GameMapType.PulicatLake,
+    translationKey: "map.pulicatlake",
+    categories: ["asia", "new"],
+    multiplayerFrequency: 3,
+    ffaFrequency: -1,
+    teamFrequency: -1,
+    specialFrequency: -1,
+    defaultNationCount: 12,
+    specialTeamCount: 2,
+    themes: ["asia"],
   },
   {
     id: "QingChina",
@@ -2131,7 +2183,7 @@ export const maps: readonly MapInfo[] = [
     type: GameMapType.TheBox,
     translationKey: "map.thebox",
     categories: ["arcade"],
-    multiplayerFrequency: 3,
+    multiplayerFrequency: 6,
     ffaFrequency: -1,
     teamFrequency: -1,
     specialFrequency: -1,
