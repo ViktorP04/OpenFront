@@ -1827,7 +1827,7 @@ export class GameServer {
             0
           : Number(c.nations) > 0);
       if (players.length >= 1 && hasOpponents)
-        void sendLocalMatchReward({
+        void this.awardLocalCaps({
           gameId: this.id,
           players,
           gameType: this.gameConfig.gameType,
@@ -1879,6 +1879,25 @@ export class GameServer {
         [...this.reports.values()],
       ),
     );
+  }
+
+  private async awardLocalCaps(
+    match: Parameters<typeof sendLocalMatchReward>[0],
+  ): Promise<void> {
+    const awards = await sendLocalMatchReward(match);
+    if (awards === null) return;
+    for (const [, client] of this.clients.all()) {
+      const amount = awards[client.persistentID];
+      if (
+        amount === undefined ||
+        amount <= 0 ||
+        client.ws.readyState !== WebSocket.OPEN
+      )
+        continue;
+      client.ws.send(
+        encodeServerMessage({ type: "caps_reward", amount }, this.zbinCtx),
+      );
+    }
   }
 
   // A player reporting another. The API resolves both clientIDs through this

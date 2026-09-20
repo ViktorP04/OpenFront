@@ -1,6 +1,6 @@
 import { Config } from "src/core/configuration/Config";
 import { ClientEnv } from "../client/ClientEnv";
-import { reloadForUpdate, translateText } from "../client/Utils";
+import { reloadForUpdate, showToast, translateText } from "../client/Utils";
 import { EventBus } from "../core/EventBus";
 import {
   ClientID,
@@ -309,6 +309,10 @@ export function joinLobby(
             "error_modal.connection_error",
           );
         });
+    }
+    if (message.type === "caps_reward") {
+      showToast(`+${message.amount} Caps earned!`, "green", 5000);
+      return;
     }
     if (message.type === "error") {
       if (message.error === "full-lobby" || message.error === "game-started") {

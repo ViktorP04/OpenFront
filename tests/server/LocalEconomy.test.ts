@@ -70,6 +70,15 @@ describe("local Caps ledger", () => {
     ).toBe(false);
   });
 
+  it("returns the amount actually credited for player notifications", () => {
+    const { ids, economy, match } = setup();
+    expect(economy.award(match("notice01"))).toEqual({
+      [ids[0]]: 25,
+      [ids[1]]: 25,
+    });
+    expect(economy.award(match("notice01"))).toEqual({});
+  });
+
   it.each([
     [Difficulty.Easy, 5],
     [Difficulty.Medium, 15],

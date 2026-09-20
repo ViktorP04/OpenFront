@@ -128,6 +128,29 @@ describe("LocalServer archiving", () => {
     }
   });
 
+  it("shows the confirmed Caps amount after a solo win", async () => {
+    vi.spyOn(AuthConfig, "localAccountsEnabled").mockReturnValue(true);
+    fetchMock.mockImplementation(async (input: string) =>
+      input.endsWith("/archive_singleplayer_game")
+        ? Response.json({ recorded: true, capsAwarded: 15 })
+        : new Response(null, { status: 200 }),
+    );
+    const messages: unknown[] = [];
+    window.addEventListener("show-message", (event) =>
+      messages.push((event as CustomEvent).detail),
+    );
+    const server = makeServer(false);
+    server.start();
+    server.onMessage(winnerMsg);
+    await vi.waitFor(() => expect(messages).toHaveLength(1));
+    expect(messages[0]).toEqual({
+      message: "+15 Caps earned!",
+      color: "green",
+      duration: 5000,
+    });
+    server.endGame();
+  });
+
   it("archives at win time, without keepalive, and not again at endGame", async () => {
     const server = makeServer(false);
     server.start();

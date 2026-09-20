@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { localAccountsEnabled } from "../../src/auth/AuthConfig";
 import { Difficulty, GameType } from "../../src/core/game/Game";
 import type { ClientMessage, GameConfig } from "../../src/core/Schemas";
+import { createGameWireContext } from "../../src/core/ZbinWire";
 import { capsEligibleConfig } from "../../src/server/LocalEconomy";
 import { sendLocalMatchReward } from "../../src/server/LocalMatchRewards";
 import {
@@ -18,7 +19,7 @@ vi.mock("../../src/auth/AuthConfig", async (original) => ({
   localAccountsEnabled: vi.fn(() => true),
 }));
 vi.mock("../../src/server/LocalMatchRewards", () => ({
-  sendLocalMatchReward: vi.fn(async () => {}),
+  sendLocalMatchReward: vi.fn(async () => null),
 }));
 
 describe("game server Caps awards", () => {
@@ -79,6 +80,31 @@ describe("game server Caps awards", () => {
     expect(match.players[1].won).toBe(false);
     await game.end();
     expect(sendLocalMatchReward).toHaveBeenCalledOnce();
+  });
+
+  it("sends each account only its confirmed Caps award", async () => {
+    vi.mocked(sendLocalMatchReward).mockImplementationOnce(async (match) => ({
+      [match.players[0].userId]: 25,
+    }));
+    const { players, guest } = await play();
+    const wireContext = createGameWireContext(
+      [...players, guest].map((player) => ({ clientID: player.clientID })),
+    );
+    await vi.waitFor(() =>
+      expect(
+        mockWsOf(players[0])
+          .sent(wireContext)
+          .some(
+            (message) =>
+              message.type === "caps_reward" && message.amount === 25,
+          ),
+      ).toBe(true),
+    );
+    expect(
+      mockWsOf(players[1])
+        .sent(wireContext)
+        .some((message) => message.type === "caps_reward"),
+    ).toBe(false);
   });
 
   it("submits one-account AI lobby wins with the selected difficulty", async () => {

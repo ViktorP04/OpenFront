@@ -115,7 +115,8 @@ export type ServerMessage =
   | ServerPrestartMessage
   | ServerErrorMessage
   | ServerLobbyInfoMessage
-  | ServerNewLobbyMessage;
+  | ServerNewLobbyMessage
+  | ServerCapsRewardMessage;
 
 export type ServerTurnMessage = z.infer<typeof ServerTurnMessageSchema>;
 export type ServerStartGameMessage = z.infer<
@@ -129,6 +130,9 @@ export type ServerLobbyInfoMessage = z.infer<
   typeof ServerLobbyInfoMessageSchema
 >;
 export type ServerNewLobbyMessage = z.infer<typeof ServerNewLobbyMessageSchema>;
+export type ServerCapsRewardMessage = z.infer<
+  typeof ServerCapsRewardMessageSchema
+>;
 export type ClientSendWinnerMessage = z.infer<typeof ClientSendWinnerSchema>;
 export type ClientSendLiveStatsMessage = z.infer<
   typeof ClientSendLiveStatsSchema
@@ -1030,6 +1034,13 @@ export const ServerNewLobbyMessageSchema = z.object({
   gameID: ID,
 });
 
+// A local account reward confirmed by the account service. This travels only
+// from the trusted game server to the connection belonging to that account.
+export const ServerCapsRewardMessageSchema = z.object({
+  type: z.literal("caps_reward"),
+  amount: zb.uint({ min: 1 }),
+});
+
 export const ServerMessageSchema = zb.discriminatedUnion("type", [
   ServerTurnMessageSchema,
   ServerPrestartMessageSchema,
@@ -1039,6 +1050,7 @@ export const ServerMessageSchema = zb.discriminatedUnion("type", [
   ServerErrorSchema,
   ServerLobbyInfoMessageSchema,
   ServerNewLobbyMessageSchema,
+  ServerCapsRewardMessageSchema,
 ]);
 
 //

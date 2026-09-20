@@ -28,6 +28,7 @@ import {
   GameSpeedUpIntentEvent,
   ReplaySpeedChangeEvent,
 } from "./InputHandler";
+import { showToast } from "./Utils";
 import {
   defaultReplaySpeedMultiplier,
   ReplaySpeedMultiplier,
@@ -386,8 +387,19 @@ export class LocalServer {
       );
       if (response.ok) {
         this.archived = true;
-        if (localAccountsEnabled())
+        if (localAccountsEnabled()) {
+          const result = (await response.json().catch(() => null)) as {
+            capsAwarded?: unknown;
+          } | null;
+          if (
+            result !== null &&
+            Number.isSafeInteger(result.capsAwarded) &&
+            Number(result.capsAwarded) > 0
+          ) {
+            showToast(`+${result.capsAwarded} Caps earned!`, "green", 5000);
+          }
           document.dispatchEvent(new Event("local-achievements-updated"));
+        }
       } else {
         console.error(
           `Failed to archive singleplayer game: ${response.status}`,

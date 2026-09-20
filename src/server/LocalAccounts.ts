@@ -188,8 +188,7 @@ export async function createLocalAccounts(options: {
         res.status(400).json({ error: "Invalid match reward" });
         return;
       }
-      economy.award(parsed.data);
-      res.json({ ok: true });
+      res.json({ awards: economy.award(parsed.data) });
     },
   );
   router.use((req, res, next) => {

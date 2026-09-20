@@ -94,15 +94,16 @@ export class LocalEconomy {
     }
   }
 
-  award(match: LocalMatchReward, now = new Date()): void {
-    this.transaction(() => {
+  award(match: LocalMatchReward, now = new Date()): Record<string, number> {
+    return this.transaction(() => {
+      const awards: Record<string, number> = {};
       // Deduplicate the entire result, including capped/zero-credit players.
       if (
         !this.db
           .prepare("INSERT OR IGNORE INTO caps_matches VALUES (?)")
           .run(match.gameId).changes
       )
-        return;
+        return awards;
       const unique = new Map(match.players.map((p) => [p.userId, p]));
       const eligible = [...unique.values()].filter(
         (p) =>
@@ -111,13 +112,15 @@ export class LocalEconomy {
       );
       const day = now.toISOString().slice(0, 10);
       for (const player of eligible) {
-        this.credit(
+        const amount = this.credit(
           player.userId,
           `match:${match.gameId}`,
           matchCaps(match.gameType, match.difficulty, player.won),
           day,
         );
+        if (amount > 0) awards[player.userId] = amount;
       }
+      return awards;
     });
   }
 

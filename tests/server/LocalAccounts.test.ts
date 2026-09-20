@@ -333,9 +333,14 @@ describe("local accounts", { timeout: 15000 }, () => {
       (await purchase("crescent", {}, jwt, "https://evil.test")).status,
     ).toBe(403);
     expect((await purchase("crescent")).status).toBe(400);
-    for (let i = 1; i <= 5; i++)
-      expect((await submit(`match00${i}`)).status).toBe(200);
-    expect((await submit("match001")).status).toBe(200);
+    for (let i = 1; i <= 5; i++) {
+      const response = await submit(`match00${i}`);
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.awards[userId]).toBe(i <= 4 ? 25 : undefined);
+      expect(body.awards[otherId]).toBe(10);
+    }
+    expect(await (await submit("match001")).json()).toEqual({ awards: {} });
     expect((await (await api.me(jwt)).json()).player.currency.soft).toBe(100);
     expect((await (await api.me(jwt2)).json()).player.currency.soft).toBe(50);
     expect((await purchase("crescent", { priceSoft: 0 })).status).toBe(400);
