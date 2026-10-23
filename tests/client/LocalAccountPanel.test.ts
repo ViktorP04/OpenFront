@@ -83,3 +83,30 @@ it("offers password changes and session revocation for a signed-in account", asy
   expect(panel.querySelector('input[name="currentPassword"]')).not.toBeNull();
   expect(panel.querySelector('input[name="registrationCode"]')).toBeNull();
 });
+
+it("shows the upstream profile card for a local account without enabling prestige", async () => {
+  panel.username = "Friend";
+  panel.progress = {
+    prestige: 0,
+    level: 12,
+    xpInLevel: 50,
+    xpForNext: 800,
+    lifetimeXp: 5500,
+    legend: false,
+    canPrestige: false,
+  };
+  await panel.updateComplete;
+  const card = panel.querySelector("profile-card") as HTMLElement & {
+    progress: unknown;
+    prestigeable: boolean;
+  };
+  expect(card).not.toBeNull();
+  expect(card.progress).toEqual(panel.progress);
+  expect(card.prestigeable).toBe(false);
+  expect(
+    Array.from(panel.querySelectorAll("a")).map((link) =>
+      link.getAttribute("href"),
+    ),
+  ).toContain("#modal=account&tab=progression");
+  expect(panel.textContent).toContain("do not change your Caps balance");
+});

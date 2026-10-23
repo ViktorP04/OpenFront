@@ -1,4 +1,6 @@
 import { isValidGameID } from "@openfront/engine-api/Schemas";
+import "./ProfileCard";
+import type { Progress } from "@openfront/shared/ApiSchemas";
 import { html, LitElement, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { getApiBase } from "../ApiBase";
@@ -7,6 +9,7 @@ import { ClientEnv } from "../ClientEnv";
 @customElement("local-account-panel")
 export class LocalAccountPanel extends LitElement {
   @property() username = "";
+  @property({ attribute: false }) progress: Progress | null = null;
   @state() private register = false;
   @state() private busy = false;
   @state() private error = "";
@@ -91,6 +94,23 @@ export class LocalAccountPanel extends LitElement {
       ${
         this.username
           ? html`
+              <profile-card
+                .username=${this.username}
+                .progress=${this.progress}
+                variant="compact"
+              ></profile-card>
+              <a
+                class="text-blue-300 underline"
+                href="#modal=account&tab=progression"
+                >View level progress</a
+              >
+              <p class="text-sm text-white/70">
+                Earn XP by playing normal solo and multiplayer games. Levels are
+                cosmetic and do not change your Caps balance. Play actively for
+                at least two minutes with no cheats. Solo games earn 25% XP
+                (five games per UTC day); private lobbies earn 50% (ten per
+                day).
+              </p>
               <p class="text-sm text-white/70">
                 Your account includes three free flags: Sunrise, Mountain, and
                 Comet. Earn Caps in solo wins and multiplayer matches to unlock

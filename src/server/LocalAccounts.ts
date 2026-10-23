@@ -22,6 +22,11 @@ import { eligibleCompletion } from "./LocalAchievements";
 import { freeCosmeticFlares, localCosmetics } from "./LocalCosmetics";
 import { LocalEconomy, LocalMatchRewardSchema } from "./LocalEconomy";
 import { localLeaderboard } from "./LocalLeaderboard";
+import {
+  LocalProgression,
+  LOCAL_PROGRESSION_CONFIG,
+  LocalProgressionMatchSchema,
+} from "./LocalProgression";
 
 const credentials = z.object({
   username: z
@@ -88,6 +93,7 @@ export async function createLocalAccounts(options: {
       map_name TEXT NOT NULL, difficulty TEXT NOT NULL,
       PRIMARY KEY (user_id, map_name, difficulty));`);
   const economy = new LocalEconomy(db);
+  const progression = new LocalProgression(db);
   let stored = db
     .prepare("SELECT value FROM settings WHERE key='signingKey'")
     .get() as { value: string } | undefined;
@@ -189,6 +195,32 @@ export async function createLocalAccounts(options: {
         return;
       }
       res.json({ awards: economy.award(parsed.data) });
+    },
+  );
+  router.post(
+    "/internal/match-xp",
+    (req, res, next) => {
+      if (
+        !options.rewardKey ||
+        !timingSafeEqual(
+          Buffer.from(hash(req.get("X-Local-Reward-Key") ?? "")),
+          Buffer.from(hash(options.rewardKey)),
+        )
+      ) {
+        res.status(403).json({ error: "Forbidden" });
+        return;
+      }
+      next();
+    },
+    express.json({ limit: "2mb" }),
+    (req, res) => {
+      const parsed = LocalProgressionMatchSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: "Invalid match XP result" });
+        return;
+      }
+      progression.awardMatch(parsed.data);
+      res.json({ recorded: true });
     },
   );
   router.use((req, res, next) => {
@@ -458,6 +490,11 @@ export async function createLocalAccounts(options: {
       res.status(400).json({ error: "Invalid game start." });
       return;
     }
+    progression.startSolo(
+      session.user_id,
+      parsed.data.gameId,
+      parsed.data.config,
+    );
     res.json({
       eligible: economy.startSolo(
         session.user_id,
@@ -491,6 +528,7 @@ export async function createLocalAccounts(options: {
       }
       // Accept non-winning/custom games without awarding a medal. Replay bodies
       // are deliberately not retained by this personal-progress endpoint.
+      progression.finishSolo(session.user_id, req.body?.info);
       const capsAwarded = economy.finishSolo(session.user_id, req.body?.info);
       res.json({ recorded: completion !== null, capsAwarded });
     });
@@ -547,6 +585,36 @@ export async function createLocalAccounts(options: {
     res.set("Cache-Control", "no-store");
     res.json(localLeaderboard(db, query.data.metric, query.data.page));
   });
+  router.get("/public/progression/config", (_req, res) => {
+    res.json(LOCAL_PROGRESSION_CONFIG);
+  });
+  router.get("/public/player/:publicId/progress", (req, res) => {
+    const users = db.prepare("SELECT id FROM users").all() as { id: string }[];
+    const user = users.find((entry) => hash(entry.id) === req.params.publicId);
+    if (!user) {
+      res.status(404).json({ error: "Player not found" });
+      return;
+    }
+    res.json(progression.publicProgress(user.id));
+  });
+  router.get("/users/@me/xp/:gameId", async (req, res) => {
+    const session = await bearerSession(req);
+    if (!session) {
+      res.status(401).json({ error: "Sign in to view XP." });
+      return;
+    }
+    const id = ID.safeParse(req.params.gameId);
+    if (!id.success) {
+      res.status(400).json({ error: "Invalid game ID." });
+      return;
+    }
+    const xp = progression.game(session.user_id, id.data);
+    if (!xp) {
+      res.status(404).json({ error: "Game has not been scored." });
+      return;
+    }
+    res.json(xp);
+  });
   router.get("/users/@me", async (req, res) => {
     const session = await bearerSession(req);
     if (!session) {
@@ -564,6 +632,7 @@ export async function createLocalAccounts(options: {
           flares: [...freeCosmeticFlares, ...economy.flares(user.id)],
           currency: { soft: economy.balance(user.id), hard: 0 },
           rewards: [],
+          progress: progression.progress(user.id),
           username: user.username,
           adfree: true,
           unlimitedRanked: false,

@@ -230,7 +230,21 @@ export class AccountModal extends BaseModal {
   }
 
   protected modalConfig() {
-    if (authPolicy().localAccounts) return {};
+    if (authPolicy().localAccounts)
+      return this.hasProgress()
+        ? {
+            tabs: [
+              {
+                key: "account",
+                label: translateText("account_modal.tab_account"),
+              },
+              {
+                key: "progression",
+                label: translateText("account_modal.tab_progression"),
+              },
+            ],
+          }
+        : {};
     if (this.isLoadingUser || !this.isLinkedAccount()) {
       return {};
     }
@@ -262,8 +276,11 @@ export class AccountModal extends BaseModal {
 
   protected renderBody(tab: string) {
     if (authPolicy().localAccounts) {
+      if (tab === "progression" && this.hasProgress())
+        return this.renderProgressionTab();
       return html`<local-account-panel
         .username=${this.userMeResponse?.user.local?.username ?? ""}
+        .progress=${this.userMeResponse?.player.progress ?? null}
       ></local-account-panel>`;
     }
     if (this.isLoadingUser) {

@@ -5,6 +5,7 @@ import type {
 } from "@openfront/shared/ApiSchemas";
 import { ProgressionConfigSchema } from "@openfront/shared/ApiSchemas";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import * as AuthConfig from "../../src/auth/AuthConfig";
 
 const getUserMeMock = vi.hoisted(() => vi.fn());
 const claimRewardMock = vi.hoisted(() => vi.fn());
@@ -13,6 +14,11 @@ const fetchPlayerByIdMock = vi.hoisted(() =>
   vi.fn(async (): Promise<unknown> => null),
 );
 const reducedMotion = vi.hoisted(() => ({ value: false }));
+
+vi.mock("../../src/client/ApiBase", async (original) => ({
+  ...(await original<typeof import("../../src/client/ApiBase")>()),
+  getApiBase: () => "/api/accounts",
+}));
 
 // Mocks as in AccountModalPrestige.test.ts, plus the progression reads.
 vi.mock("../../src/client/Api", () => ({
@@ -261,6 +267,36 @@ describe("AccountModal — Progression tab", () => {
     playPage.remove();
     history.replaceState(null, "", "/");
     vi.restoreAllMocks();
+  });
+
+  it("offers Account and Progression for local identities and retains password controls", async () => {
+    vi.spyOn(AuthConfig, "authPolicy").mockReturnValue(
+      AuthConfig.authPolicy(true),
+    );
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ registrationCodeRequired: false }),
+    } as Response);
+    me.user = { local: { username: "Friend" } };
+    me.player.rewards = [];
+    modal.open();
+    await settle(() => {
+      expect(tabText()).toContain("account_modal.tab_progression");
+      expect(modal.querySelector("local-account-panel")?.textContent).toContain(
+        "Signed in as Friend",
+      );
+    });
+    expect(tabText()).not.toContain("account_modal.tab_games");
+    expect(tabText()).not.toContain("account_modal.tab_friends");
+    modal.setActiveTab("progression");
+    await settle(() => expect(progression()?.progress?.level).toBe(47));
+    expect(fetchPublicPlayerProgressMock).toHaveBeenCalledWith("me");
+    modal.setActiveTab("account");
+    await settle(() =>
+      expect(
+        modal.querySelector('input[name="currentPassword"]'),
+      ).not.toBeNull(),
+    );
   });
 
   it("adds the tab after Games, before Friends, for a player with a level", async () => {

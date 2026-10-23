@@ -690,3 +690,121 @@ describe("local accounts", { timeout: 15000 }, () => {
     }
   });
 });
+
+it("serves local levels and authenticated per-game XP without changing Caps", async () => {
+  const api = await setup();
+  const cookie = api.cookie(await api.register());
+  const { jwt } = await (await api.post("/auth/refresh", {}, cookie)).json();
+  const initial = await (await api.me(jwt)).json();
+  expect(initial.player.progress).toMatchObject({ level: 1, lifetimeXp: 0 });
+  const config = await (
+    await fetch(api.base + "/public/progression/config")
+  ).json();
+  expect(config).toMatchObject({
+    maxLevel: 100,
+    maxPrestige: 0,
+    scoresSingleplayer: true,
+  });
+  const info = {
+    ...completionInfo(),
+    statsAgreed: true,
+    num_turns: 3010,
+    duration: 301,
+  };
+  info.config.gameType = "Private";
+  info.players = [
+    {
+      ...info.players[0],
+      persistentID: base64urlToUuid(decodeJwt(jwt).sub!),
+      stats: { attacks: ["100"], finalTiles: "100" },
+    } as never,
+  ];
+  const submit = (key: string) =>
+    fetch(api.base + "/internal/match-xp", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Local-Reward-Key": key,
+      },
+      body: JSON.stringify({ info, userIds: [info.players[0].persistentID] }),
+    });
+  expect((await submit(jwt)).status).toBe(403);
+  expect((await submit("test-only-reward-key")).status).toBe(200);
+  expect((await submit("test-only-reward-key")).status).toBe(200);
+  const path = "/users/@me/xp/" + info.gameID;
+  expect((await fetch(api.base + path)).status).toBe(401);
+  const response = await fetch(api.base + path, {
+    headers: { authorization: `Bearer ${jwt}` },
+  });
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({
+    eligible: true,
+    breakdown: { total: 75 },
+  });
+  const me = await (await api.me(jwt)).json();
+  expect(me.player.progress.lifetimeXp).toBe(75);
+  expect(me.player.currency).toEqual(initial.player.currency);
+  const publicProgress = await (
+    await fetch(api.base + "/public/player/" + me.player.publicId + "/progress")
+  ).json();
+  expect(publicProgress).toMatchObject({ level: 1, lifetimeXp: 75 });
+  await api.close();
+  const restarted = await setup(api.dir);
+  expect(
+    (await (await restarted.me(jwt)).json()).player.progress.lifetimeXp,
+  ).toBe(75);
+}, 15000);
+
+it("scores gzip solo XP through the existing archive route and rejects accelerated results", async () => {
+  const api = await setup();
+  const cookie = api.cookie(await api.register());
+  const { jwt } = await (await api.post("/auth/refresh", {}, cookie)).json();
+  const info = {
+    ...completionInfo(),
+    duration: 301,
+    num_turns: 3010,
+    end: 302000,
+  };
+  info.players = [
+    {
+      ...info.players[0],
+      persistentID: base64urlToUuid(decodeJwt(jwt).sub!),
+      stats: { attacks: ["100"], finalTiles: "100" },
+    } as never,
+  ];
+  const headers = {
+    origin,
+    authorization: `Bearer ${jwt}`,
+    "Content-Type": "application/json",
+  };
+  await fetch(api.base + "/rewards/solo/start", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ gameId: info.gameID, config: info.config }),
+  });
+  const save = () =>
+    fetch(api.base + "/archive_singleplayer_game", {
+      method: "POST",
+      headers: { ...headers, "Content-Encoding": "gzip" },
+      body: gzipSync(JSON.stringify({ info })),
+    });
+  await save();
+  expect((await (await api.me(jwt)).json()).player.progress.lifetimeXp).toBe(0);
+  const db = new DatabaseSync(path.join(api.dir, "accounts.sqlite"));
+  try {
+    db.prepare("UPDATE xp_solo_starts SET started_at=?").run(
+      Date.now() - 301000,
+    );
+  } finally {
+    db.close();
+  }
+  await save();
+  await save();
+  const me = await (await api.me(jwt)).json();
+  expect(me.player.progress.lifetimeXp).toBe(38);
+  expect(me.player.progress.daily.singleplayerGames).toBe(1);
+  const xp = await (
+    await fetch(api.base + "/users/@me/xp/" + info.gameID, { headers })
+  ).json();
+  expect(xp).toMatchObject({ eligible: true, after: { lifetimeXp: 38 } });
+}, 15000);

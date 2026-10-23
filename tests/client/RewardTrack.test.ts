@@ -337,6 +337,14 @@ describe("rewardTrackModel", () => {
     expect(lowered.nodes[59].current).toBe(true);
   });
 
+  it("treats zero prestige ranks as a level-only track ending in Legend", () => {
+    expect(trackEnd(config({ maxPrestige: 0 }), 0)).toMatchObject({
+      legend: true,
+      rank: 0,
+      caps: null,
+    });
+  });
+
   it("falls back to the client's cap, and bounds a runaway one", () => {
     expect(trackMaxLevel(config({ maxLevel: 0 }))).toBe(100);
     expect(trackMaxLevel(config({ maxLevel: 1.5 }))).toBe(100);

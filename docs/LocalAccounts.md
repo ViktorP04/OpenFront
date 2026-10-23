@@ -267,3 +267,55 @@ rejects guest/revoked-session hosting. Run these checks after upstream merges.
 The leaderboard displays lifetime Caps earned and solo map medals in local-account mode. It reads existing progress, so previous earnings and medals appear automatically. Caps spending does not lower a score; the daily earning limit still applies. Each unique map/difficulty medal counts once. Tied scores share a rank. Guests can view the boards; only saved account progress appears. Refresh reloads current scores, with 50 players per page.
 
 `GET /api/accounts/leaderboard/local?metric=caps&page=1` (or `metric=medals`) returns ranks, usernames, hashed public IDs, scores, and `hasMore`. It never exposes account IDs, credentials, or session data. These are progress boards, not upstream ranked Elo, clan, or tribe ladders. Solo progress retains the existing client-reported completion limitations. No extra deployment settings or database migration are required.
+
+## Local levels and XP
+
+Local accounts start at level 1 and can reach level 100. The account screen
+includes upstream's profile card and a Progression tab; lobby and in-game badges
+and the end-of-game XP panel use the same saved progress. Level 100 is the final
+Legend level for this initial track. Prestige, level reward currency, and level
+cosmetic grants are not enabled in this phase.
+
+XP is cosmetic and separate from Caps. Existing balances, purchases, map medals,
+and the 100-Caps daily limit are unchanged. Previous games are not backfilled.
+Progression tables are created automatically in the existing `accounts.sqlite`;
+include this database in the normal account backup procedure described above.
+
+The local service shares upstream's formula with the client so provisional and
+confirmed XP use the same arithmetic. The server publishes the level curve and
+rules at `GET /public/progression/config`:
+
+- Active play for at least 1,200 ticks (two minutes), with at least one attack,
+  conquest, transport launch, or structure built, is required.
+- Participation pays 50 XP plus 17 per minute alive (time XP capped at 30 minutes),
+  before game-type multipliers. Win and FFA placement bonuses follow the published
+  rules. Leaving while alive forfeits participation, win, and placement bonuses.
+- Public games earn 100%; private games 50%, up to ten scored games per UTC day;
+  solo games 25%, up to five per UTC day. Small private AI lobbies are supported.
+- The first eligible public game of the UTC day pays a 100-XP base bonus. There
+  are no subscription or ranked XP boosts on this fork.
+- Cheat configurations do not earn XP. Multiplayer games that enabled cheats
+  after starting remain disqualified even if the host switches them off again.
+- The next level costs `250 + 50 * (current level - 1)` XP. No automatic prestige
+  reset occurs at level 100.
+
+Multiplayer results travel from game workers to `POST /internal/match-xp` using
+`LOCAL_REWARD_KEY`, the existing machine-only reward credential. The server sends
+only authenticated local recipients, excludes kicked/desynced players, and supplies
+end-of-game stats and final disconnection ticks. Unconfirmed stats return an
+`unverified` XP result and earn nothing. Results are stored once per account/game
+in a transaction; retries do not duplicate XP or consume another daily allowance.
+
+Solo starts use the existing authenticated `POST /rewards/solo/start` route.
+The gzip archive route scores the signed-in player's matching registered game,
+including losses, and bounds simulated duration by elapsed server time. Starts
+expire after six hours. Solo stats are still browser-reported personal progress,
+not independently replay-verified multiplayer results. Saved-game resumes and
+replays do not submit a new result. Starting another solo game replaces the
+account's outstanding solo start.
+
+The upstream client reads confirmed results through `GET /users/@me/xp/:gameId`;
+this endpoint requires the account's bearer session and returns only its own XP.
+`GET /users/@me` includes current progression and daily allowances. Public progress
+(badge, XP, and dated milestones) is available at
+`GET /public/player/:publicId/progress`, using the existing hashed public account ID.

@@ -1,3 +1,4 @@
+import { sendLocalMatchXp } from "../../src/server/LocalProgressionRewards";
 // @vitest-environment node
 import { Difficulty, GameType } from "@openfront/engine-api/game/GameTypes";
 import type { GameConfig } from "@openfront/engine-api/Schemas";
@@ -23,6 +24,10 @@ vi.mock("../../src/server/LocalMatchRewards", () => ({
   sendLocalMatchReward: vi.fn(async () => null),
 }));
 
+vi.mock("../../src/server/LocalProgressionRewards", () => ({
+  sendLocalMatchXp: vi.fn(async () => {}),
+}));
+
 describe("game server Caps awards", () => {
   beforeEach(() => {
     vi.mocked(localAccountsEnabled).mockReturnValue(true);
@@ -39,6 +44,7 @@ describe("game server Caps awards", () => {
     config: Partial<GameConfig> = {},
     seconds = 305,
     quiet = false,
+    toggleCheats = false,
   ) {
     const game = makeGame({ config });
     const players = [
@@ -52,6 +58,10 @@ describe("game server Caps awards", () => {
     const guest = makeClient();
     game.joinClient(guest);
     startGame(game);
+    if (toggleCheats) {
+      game.updateGameConfig({ infiniteGold: true });
+      game.updateGameConfig({ infiniteGold: false });
+    }
     for (let i = 0; i < seconds; i++) {
       players[0].lastPing = Date.now();
       if (!quiet) players[1].lastPing = Date.now();
@@ -66,6 +76,27 @@ describe("game server Caps awards", () => {
     await mockWsOf(players[1]).emit(msg);
     return { game, players, guest };
   }
+
+  it("remembers cheats enabled during a match even after they are disabled", async () => {
+    await play({}, 305, false, true);
+    expect(sendLocalMatchXp).toHaveBeenCalledWith(
+      expect.objectContaining({ disqualified: true }),
+    );
+    expect(sendLocalMatchReward).not.toHaveBeenCalled();
+  });
+
+  it("submits confirmed XP stats only for authenticated local participants", async () => {
+    const { game, players, guest } = await play();
+    expect(sendLocalMatchXp).toHaveBeenCalledOnce();
+    const match = vi.mocked(sendLocalMatchXp).mock.calls[0][0];
+    expect(match.info.statsAgreed).toBe(true);
+    expect(match.info.num_turns).toBeGreaterThan(3000);
+    expect(match.userIds).toEqual(players.map((player) => player.persistentID));
+    expect(match.userIds).not.toContain(guest.persistentID);
+    expect(match.disqualified).toBe(false);
+    await game.end();
+    expect(sendLocalMatchXp).toHaveBeenCalledOnce();
+  });
 
   it("credits only authenticated original players and identifies the winner", async () => {
     const { game, players } = await play();

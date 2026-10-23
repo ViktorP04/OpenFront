@@ -154,7 +154,8 @@ export class LocalServer {
     if (
       localAccountsEnabled() &&
       !this.isReplay &&
-      !this.lobbyConfig.gameRecord
+      !this.lobbyConfig.gameRecord &&
+      this.lobbyConfig.snapshot === undefined
     ) {
       this.rewardStart = this.registerRewardStart();
     }
@@ -197,9 +198,9 @@ export class LocalServer {
         signal: AbortSignal.timeout(5000),
       });
       if (!response.ok && response.status !== 401)
-        console.warn("Could not register solo Caps rewards.");
+        console.warn("Could not register solo rewards.");
     } catch {
-      console.warn("Solo Caps rewards unavailable for this game.");
+      console.warn("Solo rewards unavailable for this game.");
     }
   }
 

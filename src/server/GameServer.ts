@@ -53,6 +53,7 @@ import {
   WireGameStartInfo,
   WireGameStartInfoSchema,
 } from "@openfront/shared/WireSchemas";
+import { hasCustomSettings as hasCustomXpSettings } from "@openfront/shared/Xp";
 import {
   createGameWireContext,
   encodeServerMessage,
@@ -79,6 +80,7 @@ import {
 import { ListingState } from "./ListingState";
 import { capsEligibleConfig } from "./LocalEconomy";
 import { sendLocalMatchReward } from "./LocalMatchRewards";
+import { sendLocalMatchXp } from "./LocalProgressionRewards";
 import { friendsLookup, NameVisibility } from "./NameVisibility";
 import { poolTargetFor } from "./PoolRouting";
 import { Roster } from "./Roster";
@@ -210,6 +212,7 @@ export class GameServer {
   private readonly capsParticipation = new Map<string, number>();
   private capsLastSample = 0;
   private capsDisqualified = false;
+  private xpDisqualified = false;
   // Compares the per-turn state hashes clients report; a disagreeing client
   // is told once and its votes are ignored from then on.
   private readonly desync = new DesyncDetector();
@@ -367,6 +370,8 @@ export class GameServer {
     applyGameConfigPatch(this.gameConfig, gameConfig);
     if (this.gameStartInfo)
       this.capsDisqualified ||= !capsEligibleConfig(this.gameConfig);
+    if (this.stage === "started")
+      this.xpDisqualified ||= hasCustomXpSettings(this.gameConfig);
     // A lowered cap (the admin bot can set one) may already be met; without
     // this the lobby would wait for the next join to notice it is full.
     this.markFullIfAutoStarting();
@@ -2189,23 +2194,46 @@ export class GameServer {
         } satisfies PlayerRecord;
       },
     );
-    void this.deps.archive(
-      createPartialGameRecord(
-        this.id,
-        this.gameStartInfo.config,
-        playerRecords,
-        turns,
-        this._startTime ?? 0,
-        endTime,
-        winner?.winner,
-        this.createdAt,
-        this.visibleAt,
-        this.gameStartInfo.tribes,
-        [...this.reports.values()],
-        this.publicGameType,
-        statsAgreed,
-      ),
+    const record = createPartialGameRecord(
+      this.id,
+      this.gameStartInfo.config,
+      playerRecords,
+      turns,
+      this._startTime ?? 0,
+      endTime,
+      winner?.winner,
+      this.createdAt,
+      this.visibleAt,
+      this.gameStartInfo.tribes,
+      [...this.reports.values()],
+      this.publicGameType,
+      statsAgreed,
     );
+    if (localAccountsEnabled()) {
+      const leftAt: Record<string, number> = {};
+      for (const [tick, turn] of turns.entries()) {
+        for (const intent of turn.intents) {
+          if (intent.type !== "mark_disconnected") continue;
+          if (intent.isDisconnected) leftAt[intent.clientID] = tick;
+          else delete leftAt[intent.clientID];
+        }
+      }
+      const userIds = this.gameStartInfo.players.flatMap((player) => {
+        const client = this.clients.get(player.clientID);
+        return client?.claims?.provider === "local" &&
+          !this.isKicked(player.clientID) &&
+          !this.desync.isDesynced(player.clientID)
+          ? [client.persistentID]
+          : [];
+      });
+      void sendLocalMatchXp({
+        info: record.info,
+        userIds,
+        leftAt,
+        disqualified: this.xpDisqualified,
+      });
+    }
+    void this.deps.archive(record);
   }
 
   private async awardLocalCaps(

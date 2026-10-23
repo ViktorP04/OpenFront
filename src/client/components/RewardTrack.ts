@@ -151,7 +151,9 @@ export function levelFlares(
 /** What finishing this run gives: the next rank, or Legend after the last. */
 export function trackEnd(config: ProgressionConfig, run: number): TrackEnd {
   const maxPrestige =
-    config.maxPrestige > 0 ? config.maxPrestige : MAX_PRESTIGE;
+    Number.isInteger(config.maxPrestige) && config.maxPrestige >= 0
+      ? config.maxPrestige
+      : MAX_PRESTIGE;
   if (run >= maxPrestige) {
     return {
       legend: true,
