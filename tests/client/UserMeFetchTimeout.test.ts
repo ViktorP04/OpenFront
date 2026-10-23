@@ -15,7 +15,6 @@ vi.mock("../../src/client/Auth", () => ({
   })),
 }));
 
-import { syncAchievements } from "../../src/client/AchievementSignal";
 import {
   fetchUserMeUncached,
   getUserMe,
@@ -28,6 +27,10 @@ const AUTH_FETCH_TIMEOUT_MS = 10_000;
 
 const profile = {
   user: {},
+  steamLicence: false,
+  steamLicenceSince: null,
+  noticesSeen: [],
+  pendingMessages: [],
   player: {
     publicId: "player-1",
     adfree: false,
@@ -132,65 +135,59 @@ describe("/users/@me is bounded", () => {
   });
 });
 
-// The memoised profile is the session's shared view of the account: the
-// account nav, cosmetics, the store and the multiplayer join path all read
-// it. Nothing used to invalidate it automatically; the post-game achievements
-// poll now runs after every game, so it is the first thing that could. Since
-// only a timeout is un-cached, an invalidate followed by a refetch that came
-// back 500 or with a dropped connection would leave `false` memoised in the
-// profile's place and strand the player as signed out for the rest of the
-// session. These exercise the real modules together -- the whole point is the
-// interaction between them.
-describe("the post-game achievements refresh and the session's profile", () => {
+// A caller that wants the profile as it is now (the provisional XP figure at
+// death) must not lose everyone else's good copy to a failed request.
+describe("fetchUserMeUncached", () => {
   let fetchMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     invalidateUserMe();
-    localStorage.clear();
-    // The sync only runs with a shell able to receive achievements.
-    (window as any).openfrontDesktop = {
-      achievements: { unlock: async () => undefined },
-    };
-    fetchMock = vi.fn(async () => ({ status: 200, json: async () => profile }));
+    fetchMock = vi.fn(async () => ({
+      status: 200,
+      json: async () => profile,
+    }));
     vi.stubGlobal("fetch", fetchMock);
     vi.spyOn(console, "error").mockImplementation(() => undefined);
-    vi.useFakeTimers();
   });
 
   afterEach(() => {
-    vi.useRealTimers();
-    delete (window as any).openfrontDesktop;
     invalidateUserMe();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
-  it("leaves the cached profile intact when the refresh fails", async () => {
-    // The session has a profile.
+  const userMeCalls = () =>
+    fetchMock.mock.calls.filter((c) => String(c[0]).includes("/users/@me"));
+
+  it("asks afresh each time, leaving the cached profile alone", async () => {
     expect(await getUserMe()).toEqual(profile);
-    const before = fetchMock.mock.calls.length;
-
-    // Every request the poll makes fails the way a refetch realistically
-    // does: not a timeout, so not something getUserMe would ever un-cache.
-    fetchMock.mockResolvedValue({ status: 500, json: async () => ({}) });
-    const sync = syncAchievements({ gameId: "g1" });
-    // Long enough to run the poll's whole schedule out.
-    await vi.advanceTimersByTimeAsync(60_000);
-    await sync;
-
-    // It really did try, and really did fail.
-    expect(fetchMock.mock.calls.length).toBeGreaterThan(before);
-
-    // ...and the player is still signed in.
+    expect(await fetchUserMeUncached()).toEqual(profile);
+    expect(await fetchUserMeUncached()).toEqual(profile);
+    expect(userMeCalls()).toHaveLength(3);
+    // Still the cached copy: no further request.
     expect(await getUserMe()).toEqual(profile);
+    expect(userMeCalls()).toHaveLength(3);
+  });
+
+  it("never caches a failure in place of a good profile", async () => {
+    expect(await getUserMe()).toEqual(profile);
+    fetchMock.mockResolvedValueOnce({ status: 500, json: async () => ({}) });
+    expect(await fetchUserMeUncached()).toBe(false);
+    expect(await getUserMe()).toEqual(profile);
+  });
+
+  it("caches nothing when there was no copy yet", async () => {
+    fetchMock.mockResolvedValueOnce({ status: 500, json: async () => ({}) });
+    expect(await fetchUserMeUncached()).toBe(false);
+    expect(await getUserMe()).toEqual(profile);
+    expect(userMeCalls()).toHaveLength(2);
   });
 });
 
 // requestUserMe answers a 401 by calling logOut(), and logOut() POSTs
 // /auth/logout with credentials — which revokes whatever refresh cookie is
-// live at that moment, not the one the request was issued with. The post-game
-// poll above fires uncached /users/@me requests seconds after a game ends, so
-// a player who signs out and back in inside that window would have the stale
+// live at that moment, not the one the request was issued with. A player who
+// signs out and back in while a /users/@me is in flight would have the stale
 // request's 401 — a fact about the session that is already dead — revoke the
 // session that replaced it. The caller cannot defend against it: logOut()
 // runs inside requestUserMe, before the answer is ever returned.
@@ -217,7 +214,7 @@ describe("a 401 only ends the session that asked for it", () => {
   it("ignores a 401 for a session that is no longer the current one", async () => {
     vi.mocked(isSessionActive).mockReturnValue(false);
 
-    expect(await fetchUserMeUncached()).toBe(false);
+    expect(await getUserMe()).toBe(false);
 
     expect(logOut).not.toHaveBeenCalled();
     // Against the session that issued the request, not whatever is current.
@@ -230,7 +227,7 @@ describe("a 401 only ends the session that asked for it", () => {
   it("ends the session when the 401 is for the still-current one", async () => {
     vi.mocked(isSessionActive).mockReturnValue(true);
 
-    expect(await fetchUserMeUncached()).toBe(false);
+    expect(await getUserMe()).toBe(false);
 
     expect(logOut).toHaveBeenCalledTimes(1);
   });

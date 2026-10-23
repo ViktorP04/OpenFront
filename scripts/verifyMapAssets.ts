@@ -1,7 +1,7 @@
+import { maps } from "@openfront/engine-api/game/Maps.gen";
 import fs from "node:fs";
 import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
-import { maps } from "../src/core/game/Maps.gen";
 
 const root = path.resolve(import.meta.dirname, "..");
 const names = new Set(maps.map((map) => map.id.toLowerCase()));

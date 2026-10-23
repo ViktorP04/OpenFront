@@ -1,14 +1,14 @@
 // @vitest-environment node
 // Opt-in integration test: run the dev server with an isolated account data
 // directory, then set LOCAL_ACCOUNT_SMOKE_TEST=true when running this file.
-import { randomBytes, randomUUID } from "node:crypto";
-import { expect, it } from "vitest";
-import { WebSocket } from "ws";
-import { simpleHash } from "../../src/core/Util";
+import { simpleHash } from "@openfront/engine-lib/Util";
 import {
   decodeServerMessage,
   encodeClientMessage,
-} from "../../src/core/ZbinWire";
+} from "@openfront/shared/ZbinWire";
+import { randomBytes, randomUUID } from "node:crypto";
+import { expect, it } from "vitest";
+import { WebSocket } from "ws";
 
 it.skipIf(process.env.LOCAL_ACCOUNT_SMOKE_TEST !== "true")(
   "accounts and guests join an invite, guests and revoked sessions cannot host",

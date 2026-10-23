@@ -1,13 +1,17 @@
+import { RankedType } from "@openfront/engine-api/game/GameTypes";
 import { html } from "lit";
 import { customElement, query, state } from "lit/decorators.js";
 import { localAccountsEnabled } from "../auth/AuthConfig";
-import { RankedType } from "../core/game/Game";
-import type { LocalLeaderboardMetric } from "../core/LocalLeaderboard";
+
+import type { LocalLeaderboardMetric } from "@openfront/shared/LocalLeaderboard";
 import { BaseModal } from "./components/BaseModal";
 import "./components/leaderboard/LeaderboardClanTable";
 import type { LeaderboardClanTable } from "./components/leaderboard/LeaderboardClanTable";
 import "./components/leaderboard/LeaderboardPlayerList";
-import type { LeaderboardPlayerList } from "./components/leaderboard/LeaderboardPlayerList";
+import type {
+  LeaderboardPlayerList,
+  PlayerLadder,
+} from "./components/leaderboard/LeaderboardPlayerList";
 import "./components/leaderboard/LeaderboardTribeTable";
 import type { LeaderboardTribeTable } from "./components/leaderboard/LeaderboardTribeTable";
 import "./components/leaderboard/LocalLeaderboardTable";
@@ -15,14 +19,21 @@ import type { LocalLeaderboardTable } from "./components/leaderboard/LocalLeader
 import { modalHeader } from "./components/ui/ModalHeader";
 import { translateText } from "./Utils";
 
-const TAB_KEYS = ["players", "players2v2", "clans", "tribes"] as const;
+const TAB_KEYS = [
+  "players",
+  "players2v2",
+  "playersFfa",
+  "clans",
+  "tribes",
+] as const;
 
 // Tab key -> ladder. "players" predates the 2v2 ladder and stays the 1v1 tab
-// so existing `#modal=leaderboard&tab=players` links keep working. Both tabs
-// share one <leaderboard-player-list>: a page fetch returns both ladders.
-const PLAYER_TABS: Record<string, RankedType> = {
+// so existing `#modal=leaderboard&tab=players` links keep working. The ladder
+// tabs share one <leaderboard-player-list>: a page fetch returns every ladder.
+const PLAYER_TABS: Record<string, PlayerLadder> = {
   players: RankedType.OneVOne,
   players2v2: RankedType.TwoVTwo,
+  playersFfa: RankedType.FreeForAll,
 };
 
 @customElement("leaderboard-modal")
@@ -43,7 +54,7 @@ export class LeaderboardModal extends BaseModal {
   private localTable?: LocalLeaderboardTable;
 
   private loadToken = 0;
-  private lastRankedType: RankedType = RankedType.OneVOne;
+  private lastRankedType: PlayerLadder = RankedType.OneVOne;
 
   protected modalConfig() {
     if (localAccountsEnabled())
@@ -63,13 +74,17 @@ export class LeaderboardModal extends BaseModal {
           key: "players2v2",
           label: translateText("leaderboard_modal.ranked_2v2_tab"),
         },
+        {
+          key: "playersFfa",
+          label: translateText("leaderboard_modal.ranked_ffa_tab"),
+        },
         { key: "clans", label: translateText("leaderboard_modal.clans_tab") },
         { key: "tribes", label: translateText("leaderboard_modal.tribes_tab") },
       ],
     };
   }
 
-  private rankedTypeFor(tab: string): RankedType | null {
+  private rankedTypeFor(tab: string): PlayerLadder | null {
     return PLAYER_TABS[tab] ?? null;
   }
 
@@ -88,7 +103,7 @@ export class LeaderboardModal extends BaseModal {
       this.loadActiveTabData();
       return;
     }
-    // The player list is one element shared by both ladder tabs, so it needs a
+    // The player list is one element shared by the ladder tabs, so it needs a
     // ranked type even while another tab is up: keep showing the last one.
     this.lastRankedType =
       this.rankedTypeFor(this.activeTab) ?? this.lastRankedType;
@@ -169,10 +184,12 @@ export class LeaderboardModal extends BaseModal {
             ${translateText("leaderboard_modal.title")}
           </span>
           ${this.activeTab === "clans" ? dateRange : ""}
-          ${this.rankedTypeFor(this.activeTab) !== null ||
-          this.activeTab === "tribes"
-            ? refreshTime
-            : ""}
+          ${
+            this.rankedTypeFor(this.activeTab) !== null ||
+            this.activeTab === "tribes"
+              ? refreshTime
+              : ""
+          }
         </div>
       `,
       onBack: () => this.close(),
@@ -184,18 +201,21 @@ export class LeaderboardModal extends BaseModal {
     if (localAccountsEnabled())
       return html`<local-leaderboard-table
         class="block h-full"
-        .metric=${(this.activeTab === "medals"
-          ? "medals"
-          : "caps") as LocalLeaderboardMetric}
+        .metric=${
+          (this.activeTab === "medals"
+            ? "medals"
+            : "caps") as LocalLeaderboardMetric
+        }
       ></local-leaderboard-table>`;
     return html`
       <div class="flex-1 min-h-0 h-full">
         <leaderboard-player-list
-          class=${this.rankedTypeFor(this.activeTab) !== null
-            ? "h-full"
-            : "hidden"}
-          .rankedType=${this.rankedTypeFor(this.activeTab) ??
-          this.lastRankedType}
+          class=${
+            this.rankedTypeFor(this.activeTab) !== null ? "h-full" : "hidden"
+          }
+          .rankedType=${
+            this.rankedTypeFor(this.activeTab) ?? this.lastRankedType
+          }
         ></leaderboard-player-list>
         <leaderboard-clan-table
           class=${this.activeTab === "clans" ? "h-full" : "hidden"}

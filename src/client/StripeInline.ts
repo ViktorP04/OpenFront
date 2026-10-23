@@ -8,8 +8,8 @@ import type {
 // script tag as a side effect of being imported, which would put js.stripe.com
 // on the critical path of every page load. /pure defers it to the first
 // loadStripe() call, i.e. to the first time a priced store tile renders.
+import { GameEnv } from "@openfront/shared/configuration/Env";
 import { loadStripe } from "@stripe/stripe-js/pure";
-import { GameEnv } from "../core/configuration/Config";
 import { ClientEnv } from "./ClientEnv";
 import {
   createInlinePaymentIntent,
@@ -78,7 +78,7 @@ function getStripe(): Promise<Stripe | null> {
   const key = stripePublishableKey();
   if (key === null) return Promise.resolve(null);
   stripePromise ??= loadStripe(key).catch((e: unknown) => {
-    console.error("getStripe: Stripe.js failed to load", e);
+    console.warn("getStripe: Stripe.js failed to load", e);
     stripePromise = null;
     return null;
   });

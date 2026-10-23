@@ -1,7 +1,7 @@
+import { base64urlToUuid } from "@openfront/shared/Base64";
+import { CosmeticsSchema } from "@openfront/shared/CosmeticSchemas";
+import type { PlayerCosmeticRefs } from "@openfront/shared/WireSchemas";
 import { gzipSync } from "node:zlib";
-import { base64urlToUuid } from "../../src/core/Base64";
-import { CosmeticsSchema } from "../../src/core/CosmeticSchemas";
-import type { PlayerCosmeticRefs } from "../../src/core/Schemas";
 import { verifyClientToken } from "../../src/server/jwt";
 import {
   freeCosmeticFlares,
@@ -10,6 +10,7 @@ import {
 import { ServerEnv } from "../../src/server/ServerEnv";
 import { completionInfo } from "../fixtures/LocalCompletion";
 // @vitest-environment node
+import { UserMeResponseSchema } from "@openfront/shared/ApiSchemas";
 import express from "express";
 import { decodeJwt, jwtVerify } from "jose";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -18,7 +19,6 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { UserMeResponseSchema } from "../../src/core/ApiSchemas";
 import {
   createLocalAccounts,
   localAccountOrigin,

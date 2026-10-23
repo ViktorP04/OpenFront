@@ -1,9 +1,9 @@
 // @vitest-environment node
+import { Difficulty, GameType } from "@openfront/engine-api/game/GameTypes";
+import { GameConfigSchema } from "@openfront/engine-api/Schemas";
 import { randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
-import { Difficulty, GameType } from "../../src/core/game/Game";
-import { GameConfigSchema } from "../../src/core/Schemas";
 import {
   LocalEconomy,
   LocalMatchRewardSchema,

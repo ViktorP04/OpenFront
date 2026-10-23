@@ -1,5 +1,5 @@
+import { Effect, EffectSchema } from "@openfront/shared/CosmeticSchemas";
 import { base64url } from "jose";
-import { Effect, EffectSchema } from "../core/CosmeticSchemas";
 
 const item = (name: string, priceSoft: number) => ({
   name,

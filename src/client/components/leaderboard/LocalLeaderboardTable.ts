@@ -1,10 +1,10 @@
-import { html, LitElement } from "lit";
-import { customElement, property, state } from "lit/decorators.js";
 import {
   LocalLeaderboardMetric,
   LocalLeaderboardResponse,
   LocalLeaderboardResponseSchema,
-} from "../../../core/LocalLeaderboard";
+} from "@openfront/shared/LocalLeaderboard";
+import { html, LitElement } from "lit";
+import { customElement, property, state } from "lit/decorators.js";
 import { getApiBase } from "../../Api";
 
 @customElement("local-leaderboard-table")
@@ -56,9 +56,11 @@ export class LocalLeaderboardTable extends LitElement {
     return html`<div class="h-full overflow-auto p-4 text-white">
       <div class="flex items-center justify-between gap-4 mb-4">
         <p class="text-sm text-white/60">
-          ${this.metric === "caps"
-            ? "Lifetime Caps earned from eligible games. Spending Caps does not affect your rank."
-            : "Solo map medals earned across maps and difficulty levels."}
+          ${
+            this.metric === "caps"
+              ? "Lifetime Caps earned from eligible games. Spending Caps does not affect your rank."
+              : "Solo map medals earned across maps and difficulty levels."
+          }
         </p>
         <button
           class="px-4 py-2 rounded-lg bg-purple-700 hover:bg-purple-600 disabled:opacity-50"
@@ -89,31 +91,35 @@ export class LocalLeaderboardTable extends LitElement {
           )}
         </tbody>
       </table>
-      ${this.loading
-        ? html`<p class="p-4 text-center">Loading�</p>`
-        : this.error
-          ? html`<p class="p-4 text-center">
-              Could not load the leaderboard.
-              <button
-                class="underline"
-                @click=${() => this.load(this.players.length === 0)}
-              >
-                Try again
-              </button>
-            </p>`
-          : this.players.length === 0
-            ? html`<p class="p-4 text-center text-white/60">
-                No scores yet. Sign in and play to appear here.
+      ${
+        this.loading
+          ? html`<p class="p-4 text-center">Loading�</p>`
+          : this.error
+            ? html`<p class="p-4 text-center">
+                Could not load the leaderboard.
+                <button
+                  class="underline"
+                  @click=${() => this.load(this.players.length === 0)}
+                >
+                  Try again
+                </button>
               </p>`
-            : ""}
-      ${this.hasMore && !this.loading && !this.error
-        ? html`<button
-            class="block mx-auto my-4 px-4 py-2 rounded-lg bg-purple-700"
-            @click=${() => this.load(false)}
-          >
-            Load more
-          </button>`
-        : ""}
+            : this.players.length === 0
+              ? html`<p class="p-4 text-center text-white/60">
+                  No scores yet. Sign in and play to appear here.
+                </p>`
+              : ""
+      }
+      ${
+        this.hasMore && !this.loading && !this.error
+          ? html`<button
+              class="block mx-auto my-4 px-4 py-2 rounded-lg bg-purple-700"
+              @click=${() => this.load(false)}
+            >
+              Load more
+            </button>`
+          : ""
+      }
     </div>`;
   }
 }

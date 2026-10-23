@@ -1,14 +1,18 @@
-import { DatabaseSync } from "node:sqlite";
-import { z } from "zod";
-import { Difficulty, GameType } from "../core/game/Game";
-import { maps } from "../core/game/Maps.gen";
-import { DAILY_CAPS, MIN_REWARD_SECONDS, matchCaps } from "../core/LocalCaps";
+import { Difficulty, GameType } from "@openfront/engine-api/game/GameTypes";
+import { maps } from "@openfront/engine-api/game/Maps.gen";
 import {
   GameConfig,
   GameConfigSchema,
-  GameEndInfoSchema,
   ID,
-} from "../core/Schemas";
+} from "@openfront/engine-api/Schemas";
+import {
+  DAILY_CAPS,
+  MIN_REWARD_SECONDS,
+  matchCaps,
+} from "@openfront/shared/LocalCaps";
+import { GameEndInfoSchema } from "@openfront/shared/WireSchemas";
+import { DatabaseSync } from "node:sqlite";
+import { z } from "zod";
 import { hostCheatsEnabled } from "./ConfigPatch";
 import { LocalCosmeticType, localPurchaseItem } from "./LocalCosmetics";
 

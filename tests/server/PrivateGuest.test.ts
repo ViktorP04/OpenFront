@@ -1,10 +1,10 @@
 // @vitest-environment node
+import { GameEnv } from "@openfront/shared/configuration/Env";
+import { PersistentIdSchema } from "@openfront/shared/WireSchemas";
 import { randomUUID } from "node:crypto";
 import { afterEach, expect, it, vi } from "vitest";
-import { PersistentIdSchema } from "../../src/core/Schemas";
-import { GameEnv } from "../../src/core/configuration/Config";
-import { ServerEnv } from "../../src/server/ServerEnv";
 import { verifyClientToken } from "../../src/server/jwt";
+import { ServerEnv } from "../../src/server/ServerEnv";
 
 afterEach(() => {
   vi.unstubAllEnvs();

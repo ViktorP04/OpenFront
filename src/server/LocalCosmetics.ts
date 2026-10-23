@@ -1,5 +1,5 @@
+import { CosmeticsSchema } from "@openfront/shared/CosmeticSchemas";
 import { base64url } from "jose";
-import { CosmeticsSchema } from "../core/CosmeticSchemas";
 import { localCosmeticStyles } from "./LocalCosmeticStyles";
 import { PrivilegeCheckerImpl } from "./Privilege";
 

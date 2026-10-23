@@ -1,9 +1,11 @@
+// @vitest-environment jsdom
+import { GameMapType, GameMapSize } from "@openfront/engine-api/game/GameTypes";
+import type { GameStartInfo } from "@openfront/engine-api/Schemas";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import type { GameStartInfo } from "../src/core/Schemas";
-import { WorkerClient } from "../src/core/worker/WorkerClient";
+import { WorkerClient } from "../src/client/WorkerClient";
 
 const state = vi.hoisted(() => ({ worker: null as any }));
-vi.mock("../src/core/worker/Worker.worker.ts?worker&inline", () => ({
+vi.mock("@openfront/engine/worker/Worker.worker?worker&inline", () => ({
   default: class extends EventTarget {
     postMessage = vi.fn();
     terminate = vi.fn();
@@ -11,6 +13,17 @@ vi.mock("../src/core/worker/Worker.worker.ts?worker&inline", () => ({
       super();
       state.worker = this;
     }
+  },
+}));
+
+vi.mock("../src/client/TerrainMapFileLoader", () => ({
+  terrainMapFileLoader: {
+    getMapData: () => ({
+      manifest: async () => ({ name: "viktor" }),
+      mapBin: async () => new Uint8Array(4),
+      map4xBin: async () => new Uint8Array(4),
+      map16xBin: async () => new Uint8Array(4),
+    }),
   },
 }));
 
@@ -24,7 +37,12 @@ afterEach(() => {
 });
 
 async function start() {
-  const client = new WorkerClient({} as GameStartInfo, undefined);
+  const client = new WorkerClient(
+    {
+      config: { gameMap: GameMapType.Onion, gameMapSize: GameMapSize.Normal },
+    } as GameStartInfo,
+    undefined,
+  );
   const ready = client.initialize();
   // Observe rejection before advancing timers or dispatching worker events.
   void ready.catch(() => {});
@@ -35,14 +53,12 @@ async function start() {
 }
 
 it.each(["", "https://cdn.example.com"])(
-  "passes an absolute asset base into Blob workers (CDN=%s)",
+  "passes loaded map data into Blob workers (CDN=%s)",
   async (cdnBase) => {
     window.BOOTSTRAP_CONFIG = { cdnBase };
     const { ready, worker, init } = await start();
-    expect(init.cdnBase).toBe(cdnBase || window.location.origin);
-    expect(
-      new URL("/_assets/maps/viktor/map.bin", init.cdnBase).protocol,
-    ).toMatch(/^https?:$/);
+    expect(init).not.toHaveProperty("cdnBase");
+    expect(init.map.mapBin).toBeInstanceOf(Uint8Array);
     worker.dispatchEvent(
       new MessageEvent("message", {
         data: { type: "initialized", id: init.id },
@@ -58,9 +74,9 @@ it("reports map initialization failures immediately and terminates the worker", 
   worker.dispatchEvent(
     new MessageEvent("message", {
       data: {
-        type: "initialization_error",
+        type: "init_error",
         id: init.id,
-        message: "Failed to load map: 404",
+        error: "Failed to load map: 404",
       },
     }),
   );

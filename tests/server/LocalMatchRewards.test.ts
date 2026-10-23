@@ -1,10 +1,11 @@
 // @vitest-environment node
+import { Difficulty, GameType } from "@openfront/engine-api/game/GameTypes";
+import type { GameConfig } from "@openfront/engine-api/Schemas";
+import type { ClientMessage } from "@openfront/shared/WireSchemas";
+import { createGameWireContext } from "@openfront/shared/ZbinWire";
 import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { localAccountsEnabled } from "../../src/auth/AuthConfig";
-import { Difficulty, GameType } from "../../src/core/game/Game";
-import type { ClientMessage, GameConfig } from "../../src/core/Schemas";
-import { createGameWireContext } from "../../src/core/ZbinWire";
 import { capsEligibleConfig } from "../../src/server/LocalEconomy";
 import { sendLocalMatchReward } from "../../src/server/LocalMatchRewards";
 import {

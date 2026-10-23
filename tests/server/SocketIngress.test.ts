@@ -1,16 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MatchTelemetryRecorder } from "../../src/server/MatchTelemetryRecorder";
+import {
+  type IntentObservation,
+  noopMatchGatekeeper,
+} from "../../src/server/Gatekeeper";
 import {
   KICK_REASON_INVALID_MESSAGE,
   KICK_REASON_TOO_MUCH_DATA,
   SocketIngress,
   SocketIngressView,
 } from "../../src/server/SocketIngress";
-import type {
-  MatchTelemetryCounters,
-  MatchTelemetryEmitter,
-  MatchTelemetryEvent,
-} from "../../src/server/telemetry/MatchTelemetry";
 import {
   cid,
   makeClient,
@@ -21,26 +19,14 @@ import { clientFrame } from "../util/Wire";
 
 // The ingress pipeline on its own, with a stubbed rate limiter: what reaches
 // the game, what is dropped, who gets kicked, and how a rejected intent is
-// attributed in telemetry. What a delivered message then does is GameServer's
-// handleClientMessage, covered by the frame-level tests (GameServerWire,
-// GameServerJoin, MatchTelemetryIntegration).
-
-class RecordingEmitter implements MatchTelemetryEmitter {
-  events: MatchTelemetryEvent[] = [];
-  emit(event: MatchTelemetryEvent) {
-    this.events.push(event);
-    return "enqueued" as const;
-  }
-  counters(): MatchTelemetryCounters {
-    throw new Error("not used");
-  }
-  stop() {}
-}
+// reported to the gatekeeper. What a delivered message then does is
+// GameServer's handleClientMessage, covered by the frame-level tests
+// (GameServerWire, GameServerJoin).
 
 type Rate = "ok" | "limit" | "kick";
 
 function setup(rate: Rate = "ok") {
-  const emitter = new RecordingEmitter();
+  const intentObserved = vi.fn((_: IntentObservation) => {});
   const view: SocketIngressView = {
     zbinCtx: () => undefined,
     serverTick: () => 7,
@@ -49,17 +35,19 @@ function setup(rate: Rate = "ok") {
     kick: vi.fn(),
   };
   const check = vi.fn((): Rate => rate);
+  const log = mockLogger();
   const ingress = new SocketIngress(
-    mockLogger(),
-    new MatchTelemetryRecorder(emitter, cid("match"), "build-1"),
+    log,
     view,
     { check },
+    { ...noopMatchGatekeeper, intentObserved },
   );
   const observed = () =>
-    emitter.events
-      .filter((e) => e.type === "intent_observed")
-      .map((e) => e.payload);
-  return { ingress, view, check, observed };
+    intentObserved.mock.calls.map(([o]) => ({
+      ...o,
+      client: o.client.clientID,
+    }));
+  return { ingress, view, check, observed, log };
 }
 
 const P1 = cid("p1");
@@ -79,12 +67,15 @@ describe("SocketIngress.receive", () => {
   it("hands a valid message to the game after charging it to the rate limiter", () => {
     const { ingress, view, check, observed } = setup();
     const client = makeClient({ clientID: P1 });
-    const frame = clientFrame({ type: "ping" });
+    const frame = clientFrame({ type: "ping", sentAt: 0 });
 
     ingress.receive(client, frame);
 
     expect(check).toHaveBeenCalledWith(P1, "ping", frame.length);
-    expect(view.onMessage).toHaveBeenCalledWith(client, { type: "ping" });
+    expect(view.onMessage).toHaveBeenCalledWith(client, {
+      type: "ping",
+      sentAt: 0,
+    });
     expect(view.kick).not.toHaveBeenCalled();
     expect(observed()).toEqual([]);
   });
@@ -116,11 +107,11 @@ describe("SocketIngress.receive", () => {
 
     expect(observed()).toMatchObject([
       {
-        identity: { clientId: P1, publicId: "p1-pub" },
+        client: P1,
         intentType: "targetPlayer",
         outcome: "rejected",
+        turn: 7,
         reasonCode: KICK_REASON_INVALID_MESSAGE,
-        reasonDetail: expect.stringContaining("target"),
         intent: { type: "targetPlayer", target: "not a client id" },
       },
     ]);
@@ -159,9 +150,10 @@ describe("SocketIngress.receive", () => {
 
       expect(observed()).toMatchObject([
         {
-          identity: { clientId: P1, publicId: "p1-pub" },
+          client: P1,
           intentType: "spawn",
           outcome: "rejected",
+          turn: 7,
           reasonCode,
           intent: { type: "spawn", tile: 1, clientID: P1 },
         },
@@ -176,18 +168,25 @@ describe("SocketIngress.receive", () => {
   );
 
   it("drops a rate-limited non-intent quietly", () => {
-    const { ingress, view, observed } = setup("limit");
+    const { ingress, view, observed, log } = setup("limit");
     ingress.receive(
       makeClient({ clientID: P1 }),
-      clientFrame({ type: "ping" }),
+      clientFrame({ type: "ping", sentAt: 0 }),
     );
     expect(view.onMessage).not.toHaveBeenCalled();
     expect(view.kick).not.toHaveBeenCalled();
     expect(observed()).toEqual([]);
+    // A misbehaving client can produce thousands of these a minute; the
+    // intent is already reported to the gatekeeper, so this must not be warn.
+    expect(log.warn).not.toHaveBeenCalled();
+    expect(log.debug).toHaveBeenCalledWith(
+      expect.stringContaining("rate limit exceeded"),
+      expect.objectContaining({ clientID: P1 }),
+    );
   });
 
   it("drops what a spectator sends for the simulation, but not housekeeping", () => {
-    const { ingress, view, observed } = setup();
+    const { ingress, view, observed, log } = setup();
     const spectator = makeClient({ clientID: P1, spectator: true });
 
     ingress.receive(spectator, spawn());
@@ -198,9 +197,18 @@ describe("SocketIngress.receive", () => {
     expect(view.onMessage).not.toHaveBeenCalled();
     // Not a rejection of the intent, just a drop: nothing to attribute.
     expect(observed()).toEqual([]);
+    // A probing spectator can produce one line per message; must not be warn.
+    expect(log.warn).not.toHaveBeenCalled();
+    expect(log.debug).toHaveBeenCalledWith(
+      expect.stringContaining("from spectator"),
+      expect.objectContaining({ clientID: P1 }),
+    );
 
-    ingress.receive(spectator, clientFrame({ type: "ping" }));
-    expect(view.onMessage).toHaveBeenCalledWith(spectator, { type: "ping" });
+    ingress.receive(spectator, clientFrame({ type: "ping", sentAt: 0 }));
+    expect(view.onMessage).toHaveBeenCalledWith(spectator, {
+      type: "ping",
+      sentAt: 0,
+    });
   });
 });
 
@@ -210,8 +218,14 @@ describe("SocketIngress.attach", () => {
     const client = makeClient({ clientID: P1 });
     ingress.attach(client);
 
-    await mockWsOf(client).trigger("message", clientFrame({ type: "ping" }));
-    expect(view.onMessage).toHaveBeenCalledWith(client, { type: "ping" });
+    await mockWsOf(client).trigger(
+      "message",
+      clientFrame({ type: "ping", sentAt: 0 }),
+    );
+    expect(view.onMessage).toHaveBeenCalledWith(client, {
+      type: "ping",
+      sentAt: 0,
+    });
 
     await mockWsOf(client).trigger("close");
     expect(view.onClose).toHaveBeenCalledWith(client);
@@ -233,7 +247,10 @@ describe("SocketIngress.attach", () => {
     const client = makeClient({ clientID: P1 });
     ingress.attach(client);
     await expect(
-      mockWsOf(client).trigger("message", clientFrame({ type: "ping" })),
+      mockWsOf(client).trigger(
+        "message",
+        clientFrame({ type: "ping", sentAt: 0 }),
+      ),
     ).resolves.toBeUndefined();
     expect(view.kick).not.toHaveBeenCalled();
   });

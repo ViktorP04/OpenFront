@@ -1,7 +1,7 @@
+import { GameUpdateType } from "@openfront/engine-api/game/GameUpdates";
+import { EventBus } from "@openfront/shared/EventBus";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { capturePagePin, resetPagePinForTests } from "../../src/client/PagePin";
-import { EventBus } from "../../src/core/EventBus";
-import { GameUpdateType } from "../../src/core/game/GameUpdates";
 
 // ClientGameRunner's server-message handling, driven through captured
 // callbacks: the lobby-phase onmessage joinLobby installs on the transport,
@@ -46,11 +46,9 @@ vi.mock("../../src/client/Utils", () => ({
   createCanvas: () => document.createElement("canvas"),
   homeHref: () => "/",
 }));
-vi.mock("../../src/core/game/TerrainMapLoader", () => ({
-  loadTerrainMap: vi.fn(async () => ({}) as never),
-}));
 vi.mock("../../src/client/TerrainMapFileLoader", () => ({
   terrainMapFileLoader: {},
+  loadCachedTerrainMap: vi.fn(async () => ({}) as never),
 }));
 vi.mock("../../src/client/hud/GameRenderer", () => ({
   createRenderer: vi.fn(),
@@ -85,7 +83,7 @@ vi.mock("../../src/client/view", () => ({
   GameView: class {},
   PlayerView: class {},
 }));
-vi.mock("../../src/core/worker/WorkerClient", () => ({
+vi.mock("../../src/client/WorkerClient", () => ({
   WorkerClient: class {},
 }));
 vi.mock("../../src/client/Transport", async (importOriginal) => {
@@ -108,9 +106,9 @@ import {
   joinLobby,
   LobbyConfig,
 } from "../../src/client/ClientGameRunner";
+import { loadCachedTerrainMap } from "../../src/client/TerrainMapFileLoader";
 import { SendHashEvent } from "../../src/client/Transport";
 import { reloadForUpdate } from "../../src/client/Utils";
-import { loadTerrainMap } from "../../src/core/game/TerrainMapLoader";
 
 function makeLobbyConfig(withStartInfo: boolean): LobbyConfig {
   return {
@@ -128,7 +126,10 @@ function makeLobbyConfig(withStartInfo: boolean): LobbyConfig {
 
 // Builds a runner around fully mocked collaborators, starts it, and returns
 // the callbacks start() handed to the transport and the worker.
-function makeStartedRunner(withStartInfo: boolean) {
+function makeStartedRunner(
+  withStartInfo: boolean,
+  opts: { isLocal?: boolean; metrics?: object } = {},
+) {
   const eventBus = new EventBus();
   const emitSpy = vi.spyOn(eventBus, "emit");
   const worker = { start: vi.fn(), sendTurn: vi.fn(), cleanup: vi.fn() };
@@ -137,7 +138,7 @@ function makeStartedRunner(withStartInfo: boolean) {
     rejoinGame: vi.fn(),
     turnComplete: vi.fn(),
     leaveGame: vi.fn(),
-    isLocal: true,
+    isLocal: opts.isLocal ?? true,
   };
   const renderer = {
     initialize: vi.fn(),
@@ -165,6 +166,10 @@ function makeStartedRunner(withStartInfo: boolean) {
     gameView as never,
     soundManager as never,
     userSettings as never,
+    null,
+    null,
+    null,
+    (opts.metrics ?? null) as never,
   );
   runner.start();
 
@@ -210,12 +215,7 @@ describe("joinLobby lobby-phase messages", () => {
     });
 
     await expect(result.prestart).resolves.toBeUndefined();
-    expect(loadTerrainMap).toHaveBeenCalledWith(
-      "world",
-      "medium",
-      expect.anything(),
-      false,
-    );
+    expect(loadCachedTerrainMap).toHaveBeenCalledWith("world", "medium");
   });
 
   it("shows the connection-error modal when start carries no gameStartInfo", async () => {
@@ -275,6 +275,7 @@ describe("ClientGameRunner in-game messages", () => {
     const { worker, onmessage } = makeStartedRunner(true);
     const turn = { turnNumber: 0, intents: [] };
 
+    onmessage({ type: "start", turns: [] });
     onmessage({ type: "turn", turn });
     expect(worker.sendTurn).toHaveBeenCalledWith(turn);
 
@@ -283,6 +284,33 @@ describe("ClientGameRunner in-game messages", () => {
     expect(console.error).toHaveBeenCalledWith(
       "got wrong turn have turns 1, received turn 5",
     );
+  });
+
+  // The (re)join's start message replays every turn so far, so live turns
+  // that beat it there are expected to be dropped: debug, not an error.
+  it("only logs a wrong turn at debug while a start message is awaited", () => {
+    const debug = vi.spyOn(console, "debug").mockImplementation(() => {});
+    const { worker, transport, onmessage } = makeStartedRunner(true);
+    const onconnect = transport.updateCallback.mock.calls[0][0] as () => void;
+
+    onmessage({ type: "turn", turn: { turnNumber: 3, intents: [] } });
+    expect(debug).toHaveBeenCalledWith(
+      "got wrong turn have turns 0, received turn 3",
+    );
+
+    const turns = [0, 1, 2, 3].map((turnNumber) => ({
+      turnNumber,
+      intents: [],
+    }));
+    onmessage({ type: "start", turns });
+    expect(worker.sendTurn).toHaveBeenCalledTimes(4);
+
+    onconnect();
+    onmessage({ type: "turn", turn: { turnNumber: 6, intents: [] } });
+    expect(debug).toHaveBeenCalledWith(
+      "got wrong turn have turns 4, received turn 6",
+    );
+    expect(console.error).not.toHaveBeenCalled();
   });
 
   it("processes a worker game update: turnComplete, hash events, render tick", () => {
@@ -298,6 +326,51 @@ describe("ClientGameRunner in-game messages", () => {
     expect(transport.turnComplete).toHaveBeenCalled();
     expect(emitSpy).toHaveBeenCalledWith(new SendHashEvent(3, 42));
     expect(gameView.update).toHaveBeenCalled();
+  });
+
+  it("feeds tick execution and wire tick interval to the game metrics", () => {
+    const metrics = {
+      start: vi.fn(),
+      stop: vi.fn(),
+      recordTickExecution: vi.fn(),
+      recordTickInterval: vi.fn(),
+    };
+    const { runner, onmessage, workerCallback } = makeStartedRunner(true, {
+      isLocal: false,
+      metrics,
+    });
+    expect(metrics.start).toHaveBeenCalledTimes(1);
+
+    const now = vi.spyOn(Date, "now");
+    now.mockReturnValue(1000);
+    onmessage({ type: "turn", turn: { turnNumber: 0, intents: [] } });
+    now.mockReturnValue(1130);
+    onmessage({ type: "turn", turn: { turnNumber: 1, intents: [] } });
+    // The first turn has nothing to measure against.
+    expect(metrics.recordTickInterval.mock.calls).toEqual([[130]]);
+
+    workerCallback({
+      tickExecutionDuration: 4.5,
+      updates: { [GameUpdateType.Hash]: [] },
+    });
+    workerCallback({ updates: { [GameUpdateType.Hash]: [] } });
+    expect(metrics.recordTickExecution.mock.calls).toEqual([[4.5]]);
+
+    runner.stop();
+    expect(metrics.stop).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not measure the tick interval of a local game", () => {
+    const metrics = {
+      start: vi.fn(),
+      stop: vi.fn(),
+      recordTickExecution: vi.fn(),
+      recordTickInterval: vi.fn(),
+    };
+    const { onmessage } = makeStartedRunner(true, { isLocal: true, metrics });
+    onmessage({ type: "turn", turn: { turnNumber: 0, intents: [] } });
+    onmessage({ type: "turn", turn: { turnNumber: 1, intents: [] } });
+    expect(metrics.recordTickInterval).not.toHaveBeenCalled();
   });
 
   it("shows the crash modal and stops on a worker error update", () => {

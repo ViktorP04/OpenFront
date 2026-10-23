@@ -1,8 +1,8 @@
 // @vitest-environment node
+import { LocalLeaderboardResponseSchema } from "@openfront/shared/LocalLeaderboard";
 import { createHash } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
-import { LocalLeaderboardResponseSchema } from "../../src/core/LocalLeaderboard";
 import { localLeaderboard } from "../../src/server/LocalLeaderboard";
 
 let db: DatabaseSync;

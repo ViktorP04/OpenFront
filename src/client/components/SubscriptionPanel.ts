@@ -1,7 +1,11 @@
+import {
+  isGrantedSubscription,
+  isSteamGrant,
+  UserSubscription,
+} from "@openfront/shared/ApiSchemas";
+import { Subscription } from "@openfront/shared/CosmeticSchemas";
 import { html, LitElement, nothing, TemplateResult } from "lit";
 import { customElement, property } from "lit/decorators.js";
-import { isGrantedSubscription, UserSubscription } from "../../core/ApiSchemas";
-import { Subscription } from "../../core/CosmeticSchemas";
 import {
   cancelSubscription,
   invalidateUserMe,
@@ -13,10 +17,21 @@ import { showInGameAlert, showInGameConfirm } from "../InGameModal";
 import { STEAM_TIER_CHANGE_IN_APP } from "../SubscriptionPolicy";
 import { translateText } from "../Utils";
 import "./baseComponents/Button";
+import { renderFreePlayPerks } from "./FreePlayPerks";
 import "./PlutoniumIcon";
 
 // The Steam-rail launch policies (S1 tier change, S2 cancel) live in
 // SubscriptionPolicy.ts so the store reads the same switches.
+
+const UNENTITLED_STATUSES: ReadonlySet<string> = new Set([
+  "canceled",
+  "expired",
+  "incomplete",
+  "incomplete_expired",
+  "past_due",
+  "paused",
+  "unpaid",
+]);
 
 @customElement("subscription-panel")
 export class SubscriptionPanel extends LitElement {
@@ -25,6 +40,9 @@ export class SubscriptionPanel extends LitElement {
 
   @property({ type: Object })
   cosmetic: Subscription | null = null;
+
+  @property({ type: Boolean })
+  steamLicence = false;
 
   createRenderRoot() {
     return this;
@@ -147,8 +165,10 @@ export class SubscriptionPanel extends LitElement {
       </span>`;
     }
 
-    const isActive =
-      this.sub.status === "active" || this.sub.status === "trialing";
+    // Grey is only for statuses known to entitle nothing. Anything else,
+    // including a status newer than this client, is treated as entitled:
+    // the server only sends `subscription` for an entitled player.
+    const isActive = !UNENTITLED_STATUSES.has(this.sub.status);
     // Unknown/newer statuses fall back to the raw value rather than showing a
     // translation key.
     const translated = translateText(
@@ -159,37 +179,54 @@ export class SubscriptionPanel extends LitElement {
       : translated;
 
     return html`<span
-      class="${base} ${isActive
-        ? "bg-green-500/10 border-green-500/30 text-green-300"
-        : "bg-white/5 border-white/15 text-white/60"}"
+      class="${base} ${
+        isActive
+          ? "bg-green-500/10 border-green-500/30 text-green-300"
+          : "bg-white/5 border-white/15 text-white/60"
+      }"
     >
       <span
-        class="w-1.5 h-1.5 rounded-full ${isActive
-          ? "bg-green-400"
-          : "bg-white/40"}"
+        class="w-1.5 h-1.5 rounded-full ${
+          isActive ? "bg-green-400" : "bg-white/40"
+        }"
       ></span>
       ${label}
     </span>`;
   }
 
-  // The one date line that matters: when it renews, or when access ends.
+  // The one date line that matters: when it renews, or when the perks end.
   //
   // A grant never renews — `sub_renews_on` was a straight falsehood on it — so
   // it gets an ends-on line instead. Checked before `cancelAtPeriodEnd` because
   // a grant is never winding down: the server has no pending-cancel state for
-  // one, it expires immediately.
-  private renderPeriodLine(): TemplateResult | typeof nothing {
+  // one, it expires immediately. The line names the TIER's perks, not "access":
+  // a Steam buyer reading "access ends" takes it as the game ending.
+  private renderPeriodLine(tierName: string): TemplateResult | typeof nothing {
     const periodEnd = this.periodEnd();
     if (!periodEnd) return nothing;
-    const dateKey = this.isGranted()
-      ? "account_modal.sub_granted_ends_on"
-      : this.sub.cancelAtPeriodEnd
-        ? "account_modal.sub_status_canceling_on"
-        : "account_modal.sub_renews_on";
+    if (this.isGranted()) {
+      return this.renderDateLine(
+        translateText("account_modal.sub_granted_perks_end_on", {
+          tier: tierName,
+          date: periodEnd,
+        }),
+        false,
+      );
+    }
+    const dateKey = this.sub.cancelAtPeriodEnd
+      ? "account_modal.sub_status_canceling_on"
+      : "account_modal.sub_renews_on";
+    return this.renderDateLine(
+      translateText(dateKey, { date: periodEnd }),
+      this.sub.cancelAtPeriodEnd,
+    );
+  }
+
+  private renderDateLine(text: string, windingDown: boolean): TemplateResult {
     return html`<div
-      class="flex items-center gap-2 text-sm ${this.sub.cancelAtPeriodEnd
-        ? "text-amber-200/80"
-        : "text-white/50"}"
+      class="flex items-center gap-2 text-sm ${
+        windingDown ? "text-amber-200/80" : "text-white/50"
+      }"
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -207,7 +244,7 @@ export class SubscriptionPanel extends LitElement {
         <line x1="8" y1="3" x2="8" y2="7" />
         <line x1="16" y1="3" x2="16" y2="7" />
       </svg>
-      <span>${translateText(dateKey, { date: periodEnd })}</span>
+      <span>${text}</span>
     </div>`;
   }
 
@@ -261,23 +298,44 @@ export class SubscriptionPanel extends LitElement {
    * replaced by static copy — no anchor, no click handler, same shape as
    * `renderManageOnWeb`.
    *
-   * Two variants, on a fact the client already has rather than a guess. Grants
-   * come from two writers and only one of them sets an end date: a Steam
-   * ownership grant is a fixed free month (`currentPeriodEnd = now + 30d`), an
-   * admin comp is open-ended (`currentPeriodEnd` null, so no date line renders
-   * above either). Telling an admin-comped player their access came from a
-   * Steam purchase would be a fresh instance of exactly the dishonesty this
-   * change exists to remove.
+   * Two variants, on facts the server sends rather than a guess. A grant a
+   * Steam month is currently funding gets the purchase copy. Any other grant
+   * (an admin comp, a Discord role) gets neutral free-access copy that never
+   * says who granted it. Telling such a player their access came from a Steam
+   * purchase would be a fresh instance of exactly the dishonesty this panel
+   * exists to remove, and an end date no longer tells the two apart (see
+   * `isSteamGrant`).
+   *
+   * The neutral note is undated whether or not the grant has an end: the date
+   * line above (`renderPeriodLine`) already names it, and saying it twice in
+   * two framings reads as two different things ending. The key is called
+   * "indefinite" from when only open-ended grants reached it; its copy states
+   * no duration either way.
    */
-  private renderGrantedNote(): TemplateResult {
+  private renderGrantedNote(tierName: string): TemplateResult {
+    if (!isSteamGrant(this.sub)) {
+      return html`
+        <p class="text-[11px] text-center text-white/40 leading-snug">
+          ${translateText("account_modal.sub_granted_indefinite")}
+        </p>
+      `;
+    }
+    // The copy names where this month came from and nothing about what
+    // follows it: a Steam month can be extending a comp that outlives it (see
+    // `isSteamGrant`). English no longer uses {tier}; it is still passed for
+    // translations made before that.
     return html`
-      <p class="text-[11px] text-center text-white/40 leading-snug">
-        ${translateText(
-          this.sub.currentPeriodEnd
-            ? "account_modal.sub_granted_from_purchase"
-            : "account_modal.sub_granted_indefinite",
+      <div class="flex flex-col gap-3">
+        <p class="text-[11px] text-center text-white/40 leading-snug">
+          ${translateText("account_modal.sub_granted_from_purchase", {
+            tier: tierName,
+          })}
+        </p>
+        ${renderFreePlayPerks(
+          "free_play.after_grant_heading",
+          this.steamLicence,
         )}
-      </p>
+      </div>
     `;
   }
 
@@ -328,16 +386,18 @@ export class SubscriptionPanel extends LitElement {
     return html`
       <div class="flex flex-col gap-2">
         <div class="flex flex-wrap gap-2">
-          ${STEAM_TIER_CHANGE_IN_APP
-            ? html`<o-button
-                class="flex-1 min-w-[8rem]"
-                variant="primary"
-                width="block"
-                size="md"
-                translationKey="account_modal.change_tier"
-                @click=${this.handleChangeTier}
-              ></o-button>`
-            : nothing}
+          ${
+            STEAM_TIER_CHANGE_IN_APP
+              ? html`<o-button
+                  class="flex-1 min-w-[8rem]"
+                  variant="primary"
+                  width="block"
+                  size="md"
+                  translationKey="account_modal.change_tier"
+                  @click=${this.handleChangeTier}
+                ></o-button>`
+              : nothing
+          }
           ${manage}
         </div>
         ${note}
@@ -351,17 +411,43 @@ export class SubscriptionPanel extends LitElement {
     `;
   }
 
-  private renderActions(): TemplateResult {
+  private renderActions(tierName: string): TemplateResult {
     // Before every other branch, and NOT gated on the desktop shell: a grant is
     // a property of the account, so a Steam buyer who signs in on the website
     // sees the same panel and would meet the same one-way Cancel there.
-    if (this.isGranted()) return this.renderGrantedNote();
+    if (this.isGranted()) return this.renderGrantedNote(tierName);
     if (this.isSteam()) return this.renderSteamActions();
 
     // The whole desktop build, not just a Steam-authenticated session: the
     // guard that makes the button dead is in the shell and applies to every
     // packaged launch.
     const onDesktop = isDesktopShell();
+
+    // The renewal failed and Stripe is still retrying it. The portal is the
+    // fix, so it is the only action: there is nothing to change tier from,
+    // and the server refuses to cancel a subscription that is not entitled.
+    if (this.sub.status === "past_due") {
+      return html`
+        <div class="flex flex-col gap-2">
+          <p class="text-sm text-amber-200/80 leading-snug">
+            ${translateText("account_modal.sub_past_due_note", {
+              tier: tierName,
+            })}
+          </p>
+          ${
+            onDesktop
+              ? this.renderManageOnWeb()
+              : html`<o-button
+                  variant="primary"
+                  width="block"
+                  size="md"
+                  translationKey="store.manage_billing"
+                  @click=${this.handleManage}
+                ></o-button>`
+          }
+        </div>
+      `;
+    }
 
     if (this.sub.cancelAtPeriodEnd) {
       if (onDesktop) return this.renderManageOnWeb();
@@ -386,16 +472,18 @@ export class SubscriptionPanel extends LitElement {
             translationKey="account_modal.change_tier"
             @click=${this.handleChangeTier}
           ></o-button>
-          ${onDesktop
-            ? nothing
-            : html`<o-button
-                class="flex-1 min-w-[8rem]"
-                variant="secondary"
-                width="block"
-                size="md"
-                translationKey="account_modal.manage_subscription"
-                @click=${this.handleManage}
-              ></o-button>`}
+          ${
+            onDesktop
+              ? nothing
+              : html`<o-button
+                  class="flex-1 min-w-[8rem]"
+                  variant="secondary"
+                  width="block"
+                  size="md"
+                  translationKey="account_modal.manage_subscription"
+                  @click=${this.handleManage}
+                ></o-button>`
+          }
         </div>
         ${onDesktop ? this.renderManageOnWeb() : nothing}
         <button
@@ -424,38 +512,44 @@ export class SubscriptionPanel extends LitElement {
               <div class="text-xl font-bold text-white leading-tight">
                 ${tierName}
               </div>
-              ${cosmetic?.product?.price
-                ? html`<div class="text-sm text-white/50">
-                    ${translateText("account_modal.sub_price_monthly", {
-                      price: cosmetic.product.price,
-                    })}
-                  </div>`
-                : ""}
+              ${
+                cosmetic?.product?.price
+                  ? html`<div class="text-sm text-white/50">
+                      ${translateText("account_modal.sub_price_monthly", {
+                        price: cosmetic.product.price,
+                      })}
+                    </div>`
+                  : ""
+              }
             </div>
             ${this.renderStatusPill()}
           </div>
 
-          ${cosmetic?.description
-            ? html`<p class="text-sm text-white/70 leading-relaxed">
-                ${cosmetic.description}
-              </p>`
-            : ""}
-          ${cosmetic
-            ? html`<div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                ${this.renderPerk(
-                  cosmetic.hardCurrencySignupBonus,
-                  "cosmetics.signup_bonus",
-                )}
-                ${this.renderPerk(
-                  cosmetic.dailyHardCurrency,
-                  "cosmetics.per_day",
-                )}
-              </div>`
-            : ""}
-          ${this.renderPeriodLine()}
+          ${
+            cosmetic?.description
+              ? html`<p class="text-sm text-white/70 leading-relaxed">
+                  ${cosmetic.description}
+                </p>`
+              : ""
+          }
+          ${
+            cosmetic
+              ? html`<div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  ${this.renderPerk(
+                    cosmetic.hardCurrencySignupBonus,
+                    "cosmetics.per_month",
+                  )}
+                  ${this.renderPerk(
+                    cosmetic.dailyHardCurrency,
+                    "cosmetics.per_day",
+                  )}
+                </div>`
+              : ""
+          }
+          ${this.renderPeriodLine(tierName)}
 
           <div class="border-t border-white/10 pt-4">
-            ${this.renderActions()}
+            ${this.renderActions(tierName)}
           </div>
         </div>
       </div>

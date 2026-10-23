@@ -1,10 +1,20 @@
-import { ClientEnv } from "src/client/ClientEnv";
-import { z } from "zod";
-import { localAccountsEnabled } from "../auth/AuthConfig";
-import { EventBus } from "../core/EventBus";
 import {
   AllPlayersStats,
   ClientID,
+  StampedIntent,
+  Turn,
+} from "@openfront/engine-api/Schemas";
+import { EventBus } from "@openfront/shared/EventBus";
+import { ClientEnv } from "src/client/ClientEnv";
+import { z } from "zod";
+import { localAccountsEnabled } from "../auth/AuthConfig";
+
+import {
+  createPartialGameRecord,
+  decompressGameRecord,
+  replacer,
+} from "@openfront/shared/SharedUtil";
+import {
   ClientMessage,
   ClientSendWinnerMessage,
   PartialGameRecord,
@@ -12,14 +22,8 @@ import {
   PlayerRecord,
   ServerMessage,
   ServerStartGameMessage,
-  StampedIntent,
-  Turn,
-} from "../core/Schemas";
-import {
-  createPartialGameRecord,
-  decompressGameRecord,
-  replacer,
-} from "../core/Util";
+} from "@openfront/shared/WireSchemas";
+
 import { getApiBase } from "./Api";
 import { getAuthHeader, getPersistentID } from "./Auth";
 import { LobbyConfig } from "./ClientGameRunner";
@@ -28,11 +32,12 @@ import {
   GameSpeedUpIntentEvent,
   ReplaySpeedChangeEvent,
 } from "./InputHandler";
-import { showToast } from "./Utils";
+import { startSingleplayerHeartbeat } from "./SingleplayerHeartbeat";
 import {
   defaultReplaySpeedMultiplier,
   ReplaySpeedMultiplier,
 } from "./utilities/ReplaySpeedMultiplier";
+import { showToast } from "./Utils";
 
 // Order: 0.5, 1, 2, max (same as ReplayPanel)
 const SPEED_ORDER: ReplaySpeedMultiplier[] = [
@@ -70,6 +75,7 @@ export class LocalServer {
   private turnStartTime = 0;
 
   private turnCheckInterval: NodeJS.Timeout;
+  private stopHeartbeat: (() => void) | null = null;
   private clientConnect: () => void;
   private clientMessage: (message: ServerMessage) => void;
 
@@ -163,6 +169,20 @@ export class LocalServer {
       // Don't send myClientID for replays — viewer has no player identity.
       myClientID: this.lobbyConfig.gameRecord ? undefined : this.clientID,
     } satisfies ServerStartGameMessage);
+    // A resumed game opens paused, so the player can get their bearings. The
+    // pause turn is also the tick that brings the view up to the save.
+    if (this.lobbyConfig.snapshot !== undefined) {
+      this.onMessage({
+        type: "intent",
+        intent: { type: "toggle_pause", paused: true },
+      });
+    }
+    // Last, so a start() that throws above leaves no interval behind.
+    if (!this.isReplay) {
+      this.stopHeartbeat = startSingleplayerHeartbeat(
+        this.lobbyConfig.gameStartInfo.gameID,
+      );
+    }
   }
 
   private async registerRewardStart(): Promise<void> {
@@ -305,6 +325,8 @@ export class LocalServer {
   public endGame() {
     console.log("local server ending game");
     clearInterval(this.turnCheckInterval);
+    this.stopHeartbeat?.();
+    this.stopHeartbeat = null;
     if (this.isReplay) {
       return;
     }
@@ -315,6 +337,12 @@ export class LocalServer {
 
   private archiveGameRecord(unloading: boolean) {
     if (this.archived || this.archiveInFlight) {
+      return;
+    }
+    // A game resumed from a save is never archived: its turns start mid-game,
+    // so the record could not replay, and archiving is what awards XP and
+    // achievements, which a shared save one move from victory would farm.
+    if (this.lobbyConfig.snapshot !== undefined) {
       return;
     }
     const players: PlayerRecord[] = [
@@ -406,7 +434,7 @@ export class LocalServer {
         );
       }
     } catch (error) {
-      console.error("Failed to archive singleplayer game:", error);
+      console.warn("Failed to archive singleplayer game:", error);
     } finally {
       this.archiveInFlight = false;
     }

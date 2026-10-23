@@ -1,23 +1,34 @@
+// @vitest-environment jsdom
+import { UnitType } from "@openfront/engine-api/game/GameTypes";
+import { EventBus } from "@openfront/shared/EventBus";
 import {
   AlternateViewEvent,
   AutoUpgradeEvent,
   CloseViewEvent,
   ConfirmGhostStructureEvent,
   ContextMenuEvent,
+  DoBoatAttackEvent,
+  DoTargetPlayerEvent,
   DragEvent,
+  EmojiKeyEvent,
+  EmojiTableVisibleEvent,
   InputHandler,
+  MouseDownEvent,
   MouseOverEvent,
+  MouseUpEvent,
+  RefreshGraphicsEvent,
+  ShowChatMenuEvent,
+  ShowEmojiMenuEvent,
   TouchLongPressStartEvent,
   UnitSelectionEvent,
   WarshipSelectionBoxCancelEvent,
   WarshipSelectionBoxCompleteEvent,
   WarshipSelectionBoxUpdateEvent,
 } from "../src/client/InputHandler";
+import { Platform } from "../src/client/Platform";
 import { UIState } from "../src/client/UIState";
+import { KEYBINDS_KEY, UserSettings } from "../src/client/UserSettings";
 import { GameView, PlayerView, UnitView } from "../src/client/view";
-import { EventBus } from "../src/core/EventBus";
-import { UnitType } from "../src/core/game/Game";
-import { KEYBINDS_KEY, UserSettings } from "../src/core/game/UserSettings";
 
 class MockPointerEvent {
   button: number;
@@ -28,6 +39,8 @@ class MockPointerEvent {
   pointerId: number;
   type: string;
   pointerType: string;
+  ctrlKey: boolean;
+  shiftKey: boolean;
   preventDefault: () => void;
 
   constructor(type: string, init: any) {
@@ -39,11 +52,33 @@ class MockPointerEvent {
     this.y = init.y ?? init.clientY;
     this.pointerId = init.pointerId;
     this.pointerType = init.pointerType ?? "mouse";
+    this.ctrlKey = init.ctrlKey ?? false;
+    this.shiftKey = init.shiftKey ?? false;
     this.preventDefault = vi.fn();
   }
 }
 
 global.PointerEvent = MockPointerEvent as any;
+
+function dispatchDomPointer(
+  target: EventTarget,
+  type: "pointerdown" | "pointermove" | "pointerup" | "pointercancel",
+  x: number,
+  y: number,
+  pointerId = 1,
+): void {
+  const event = new Event(type, { bubbles: true, composed: true });
+  Object.assign(event, {
+    button: 0,
+    clientX: x,
+    clientY: y,
+    x,
+    y,
+    pointerId,
+    pointerType: "mouse",
+  });
+  target.dispatchEvent(event);
+}
 
 describe("InputHandler AutoUpgrade", () => {
   let inputHandler: InputHandler;
@@ -78,6 +113,19 @@ describe("InputHandler AutoUpgrade", () => {
       eventBus,
     );
   });
+
+  const beginTrackedPointer = (x: number, y: number, pointerId = 1) => {
+    inputHandler["onPointerDown"](
+      new PointerEvent("pointerdown", {
+        button: 0,
+        clientX: x,
+        clientY: y,
+        pointerId,
+      }),
+    );
+    inputHandler["lastPointerDownX"] = x;
+    inputHandler["lastPointerDownY"] = y;
+  };
 
   afterEach(() => {
     inputHandler.destroy();
@@ -256,9 +304,9 @@ describe("InputHandler AutoUpgrade", () => {
         button: 0,
         clientX: 150,
         clientY: 250,
+        pointerId: 1,
       });
-      inputHandler["lastPointerDownX"] = 149;
-      inputHandler["lastPointerDownY"] = 249;
+      beginTrackedPointer(149, 249);
 
       inputHandler["onPointerUp"](pointerEvent);
 
@@ -295,6 +343,165 @@ describe("InputHandler AutoUpgrade", () => {
     });
   });
 
+  describe("Ctrl+left click (#4918)", () => {
+    let isMacDescriptor: PropertyDescriptor | undefined;
+
+    function setIsMac(value: boolean) {
+      Object.defineProperty(Platform, "isMac", {
+        configurable: true,
+        value,
+      });
+    }
+
+    function fireLeftPointerUp(ctrlKey: boolean) {
+      const shared = {
+        button: 0 as const,
+        pointerId: 1,
+        ctrlKey,
+      };
+      // Matching pointerdown required: onPointerUp returns early unless
+      // pointerDown is set and pointers has this pointerId.
+      inputHandler["onPointerDown"](
+        new PointerEvent("pointerdown", {
+          ...shared,
+          clientX: 149,
+          clientY: 249,
+        }),
+      );
+      inputHandler["onPointerUp"](
+        new PointerEvent("pointerup", {
+          ...shared,
+          clientX: 150,
+          clientY: 250,
+        }),
+      );
+    }
+
+    beforeEach(() => {
+      isMacDescriptor = Object.getOwnPropertyDescriptor(Platform, "isMac");
+      inputHandler["userSettings"].leftClickOpensMenu = () => false;
+    });
+
+    afterEach(() => {
+      if (isMacDescriptor) {
+        Object.defineProperty(Platform, "isMac", isMacDescriptor);
+      }
+    });
+
+    test("on Mac, should not emit MouseUpEvent on ctrl+left release (secondary-click)", () => {
+      setIsMac(true);
+      const mockEmit = vi.spyOn(eventBus, "emit");
+
+      fireLeftPointerUp(true);
+
+      const emittedTypes = mockEmit.mock.calls.map(
+        (call) => call[0].constructor.name,
+      );
+      expect(emittedTypes).not.toContain("MouseUpEvent");
+      expect(emittedTypes).not.toContain("ContextMenuEvent");
+      expect(emittedTypes).not.toContain("ShowBuildMenuEvent");
+    });
+
+    test("should still emit MouseUpEvent on plain left release", () => {
+      const mockEmit = vi.spyOn(eventBus, "emit");
+
+      fireLeftPointerUp(false);
+
+      const emittedTypes = mockEmit.mock.calls.map(
+        (call) => call[0].constructor.name,
+      );
+      expect(emittedTypes).toContain("MouseUpEvent");
+    });
+
+    test("Win/Linux: ctrl+left still opens the build menu when Control is held", () => {
+      setIsMac(false);
+      inputHandler["keybinds"].buildMenuModifier = "ControlLeft";
+      inputHandler["activeKeys"].add("ControlLeft");
+
+      const mockEmit = vi.spyOn(eventBus, "emit");
+      fireLeftPointerUp(true);
+
+      const emittedTypes = mockEmit.mock.calls.map(
+        (call) => call[0].constructor.name,
+      );
+      expect(emittedTypes).toContain("ShowBuildMenuEvent");
+      expect(emittedTypes).not.toContain("MouseUpEvent");
+    });
+
+    test("Win/Linux: Right Ctrl+left still attacks (not a dead click)", () => {
+      setIsMac(false);
+      inputHandler["keybinds"].buildMenuModifier = "ControlLeft";
+      inputHandler["activeKeys"].add("ControlRight");
+
+      const mockEmit = vi.spyOn(eventBus, "emit");
+      fireLeftPointerUp(true);
+
+      const emittedTypes = mockEmit.mock.calls.map(
+        (call) => call[0].constructor.name,
+      );
+      expect(emittedTypes).toContain("MouseUpEvent");
+      expect(emittedTypes).not.toContain("ShowBuildMenuEvent");
+    });
+
+    test("Mac: ctrl+left does not open build menu even if rebound to ControlLeft", () => {
+      setIsMac(true);
+      inputHandler["keybinds"].buildMenuModifier = "ControlLeft";
+      inputHandler["activeKeys"].add("ControlLeft");
+
+      const mockEmit = vi.spyOn(eventBus, "emit");
+      fireLeftPointerUp(true);
+
+      const emittedTypes = mockEmit.mock.calls.map(
+        (call) => call[0].constructor.name,
+      );
+      expect(emittedTypes).not.toContain("ShowBuildMenuEvent");
+      expect(emittedTypes).not.toContain("MouseUpEvent");
+    });
+
+    test("Mac: cmd+left still opens the build menu", () => {
+      setIsMac(true);
+      inputHandler["keybinds"].buildMenuModifier = "MetaLeft";
+      inputHandler["activeKeys"].add("MetaLeft");
+
+      const mockEmit = vi.spyOn(eventBus, "emit");
+      fireLeftPointerUp(false);
+
+      const emittedTypes = mockEmit.mock.calls.map(
+        (call) => call[0].constructor.name,
+      );
+      expect(emittedTypes).toContain("ShowBuildMenuEvent");
+      expect(emittedTypes).not.toContain("MouseUpEvent");
+    });
+
+    test("Mac: ctrl+left during spawn still emits MouseUpEvent", () => {
+      setIsMac(true);
+      mockGameView.inSpawnPhase = () => true;
+      const mockEmit = vi.spyOn(eventBus, "emit");
+
+      fireLeftPointerUp(true);
+
+      const emittedTypes = mockEmit.mock.calls.map(
+        (call) => call[0].constructor.name,
+      );
+      expect(emittedTypes).toContain("MouseUpEvent");
+    });
+
+    test("onContextMenu still opens the radial after ctrl+left", () => {
+      const mockEmit = vi.spyOn(eventBus, "emit");
+
+      const mouseEvent = new MouseEvent("contextmenu", {
+        clientX: 150,
+        clientY: 250,
+      });
+      inputHandler["onContextMenu"](mouseEvent);
+
+      const emittedTypes = mockEmit.mock.calls.map(
+        (call) => call[0].constructor.name,
+      );
+      expect(emittedTypes).toContain("ContextMenuEvent");
+    });
+  });
+
   describe("Left-click menu with ghost structure (#4789)", () => {
     test("should emit MouseUpEvent and not ContextMenuEvent when placing a ghost structure with left-click menu enabled", () => {
       const mockEmit = vi.spyOn(eventBus, "emit");
@@ -306,9 +513,9 @@ describe("InputHandler AutoUpgrade", () => {
         button: 0,
         clientX: 150,
         clientY: 250,
+        pointerId: 1,
       });
-      inputHandler["lastPointerDownX"] = 149;
-      inputHandler["lastPointerDownY"] = 249;
+      beginTrackedPointer(149, 249);
 
       inputHandler["onPointerUp"](pointerEvent);
 
@@ -329,9 +536,9 @@ describe("InputHandler AutoUpgrade", () => {
         button: 0,
         clientX: 150,
         clientY: 250,
+        pointerId: 1,
       });
-      inputHandler["lastPointerDownX"] = 149;
-      inputHandler["lastPointerDownY"] = 249;
+      beginTrackedPointer(149, 249);
 
       inputHandler["onPointerUp"](pointerEvent);
 
@@ -352,9 +559,9 @@ describe("InputHandler AutoUpgrade", () => {
         button: 0,
         clientX: 150,
         clientY: 250,
+        pointerId: 1,
       });
-      inputHandler["lastPointerDownX"] = 149;
-      inputHandler["lastPointerDownY"] = 249;
+      beginTrackedPointer(149, 249);
 
       inputHandler["onPointerUp"](pointerEvent);
 
@@ -367,6 +574,158 @@ describe("InputHandler AutoUpgrade", () => {
   });
 
   describe("Pointer Event Handling", () => {
+    test("passes a toast tap through to the game input", () => {
+      const mouseDown = vi.fn();
+      const mouseUp = vi.fn();
+      eventBus.on(MouseDownEvent, mouseDown);
+      eventBus.on(MouseUpEvent, mouseUp);
+      inputHandler["userSettings"].leftClickOpensMenu = () => false;
+      inputHandler.initialize();
+      const toast = document.createElement("div");
+      toast.setAttribute("data-game-input-pass-through", "");
+      document.body.appendChild(toast);
+
+      dispatchDomPointer(toast, "pointerdown", 100, 100);
+      dispatchDomPointer(toast, "pointerup", 101, 101);
+      toast.remove();
+
+      expect(mouseDown).toHaveBeenCalledOnce();
+      expect(mouseUp).toHaveBeenCalledOnce();
+    });
+
+    test("cancels game input when a toast interaction becomes a drag", () => {
+      const mouseUp = vi.fn();
+      eventBus.on(MouseUpEvent, mouseUp);
+      inputHandler["userSettings"].leftClickOpensMenu = () => false;
+      inputHandler.initialize();
+      const toast = document.createElement("div");
+      toast.setAttribute("data-game-input-pass-through", "");
+      document.body.appendChild(toast);
+
+      dispatchDomPointer(toast, "pointerdown", 100, 100);
+      dispatchDomPointer(toast, "pointermove", 110, 100);
+      dispatchDomPointer(toast, "pointerup", 180, 100);
+      toast.remove();
+
+      expect(inputHandler["pointerDown"]).toBe(false);
+      expect(inputHandler["pointers"].size).toBe(0);
+      expect(mouseUp).not.toHaveBeenCalled();
+    });
+
+    test("does not convert a cancelled toast gesture into a game tap", () => {
+      const mouseUp = vi.fn();
+      eventBus.on(MouseUpEvent, mouseUp);
+      inputHandler["userSettings"].leftClickOpensMenu = () => false;
+      inputHandler.initialize();
+      const toast = document.createElement("div");
+      toast.setAttribute("data-game-input-pass-through", "");
+      document.body.appendChild(toast);
+
+      dispatchDomPointer(toast, "pointerdown", 100, 100);
+      dispatchDomPointer(toast, "pointercancel", 101, 101);
+      toast.remove();
+
+      expect(inputHandler["pointerDown"]).toBe(false);
+      expect(inputHandler["pointers"].size).toBe(0);
+      expect(mouseUp).not.toHaveBeenCalled();
+    });
+
+    test("preserves an existing map pointer when a toast tap ends", () => {
+      const mouseUp = vi.fn();
+      eventBus.on(MouseUpEvent, mouseUp);
+      inputHandler["userSettings"].leftClickOpensMenu = () => false;
+      inputHandler.initialize();
+      const toast = document.createElement("div");
+      toast.setAttribute("data-game-input-pass-through", "");
+      document.body.appendChild(toast);
+
+      dispatchDomPointer(mockCanvas, "pointerdown", 20, 20, 1);
+      dispatchDomPointer(toast, "pointerdown", 100, 100, 2);
+      dispatchDomPointer(toast, "pointerup", 101, 101, 2);
+
+      expect(inputHandler["pointerDown"]).toBe(true);
+      expect(inputHandler["pointers"].size).toBe(1);
+      expect(inputHandler["pointers"].has(1)).toBe(true);
+      expect(mouseUp).not.toHaveBeenCalled();
+
+      dispatchDomPointer(window, "pointerup", 20, 20, 1);
+      toast.remove();
+
+      expect(mouseUp).toHaveBeenCalledOnce();
+    });
+
+    test("preserves an existing map pointer when a toast drag starts", () => {
+      const mouseUp = vi.fn();
+      eventBus.on(MouseUpEvent, mouseUp);
+      inputHandler["userSettings"].leftClickOpensMenu = () => false;
+      inputHandler.initialize();
+      const toast = document.createElement("div");
+      toast.setAttribute("data-game-input-pass-through", "");
+      document.body.appendChild(toast);
+
+      dispatchDomPointer(mockCanvas, "pointerdown", 20, 20, 1);
+      dispatchDomPointer(toast, "pointerdown", 100, 100, 2);
+      dispatchDomPointer(toast, "pointermove", 104, 100, 2);
+
+      expect(inputHandler["pointers"].size).toBe(2);
+
+      dispatchDomPointer(toast, "pointermove", 110, 100, 2);
+
+      expect(inputHandler["pointerDown"]).toBe(true);
+      expect(inputHandler["pointers"].size).toBe(1);
+      expect(inputHandler["pointers"].has(1)).toBe(true);
+      expect(inputHandler["pointers"].has(2)).toBe(false);
+
+      dispatchDomPointer(window, "pointerup", 20, 20, 1);
+      toast.remove();
+
+      expect(mouseUp).toHaveBeenCalledOnce();
+    });
+
+    test("should ignore a pointerup without a matching canvas pointerdown", () => {
+      const mockEmit = vi.spyOn(eventBus, "emit");
+
+      inputHandler["onPointerUp"](
+        new PointerEvent("pointerup", {
+          button: 0,
+          clientX: 150,
+          clientY: 250,
+          pointerId: 1,
+        }),
+      );
+
+      expect(mockEmit).not.toHaveBeenCalled();
+    });
+
+    test("should ignore HUD pointer movement while a map pointer is down", () => {
+      const mockEmit = vi.spyOn(eventBus, "emit");
+      inputHandler["userSettings"].leftClickOpensMenu = () => false;
+      beginTrackedPointer(100, 100, 1);
+      mockEmit.mockClear();
+
+      inputHandler["onPointerMove"](
+        new PointerEvent("pointermove", {
+          button: -1,
+          clientX: 400,
+          clientY: 400,
+          pointerId: 2,
+        }),
+      );
+      inputHandler["onPointerUp"](
+        new PointerEvent("pointerup", {
+          button: 0,
+          clientX: 400,
+          clientY: 400,
+          pointerId: 2,
+        }),
+      );
+
+      expect(mockEmit).not.toHaveBeenCalled();
+      expect(inputHandler["pointerDown"]).toBe(true);
+      expect(inputHandler["pointers"].has(1)).toBe(true);
+      expect(inputHandler["pointers"].has(2)).toBe(false);
+    });
+
     test("should handle pointer events with different pointer IDs", () => {
       const mockEmit = vi.spyOn(eventBus, "emit");
 
@@ -564,6 +923,21 @@ describe("InputHandler AutoUpgrade", () => {
   });
 
   describe("Keybinds JSON parsing", () => {
+    test("loads arrow movement and zoom fallback keys as configurable defaults", () => {
+      inputHandler.initialize();
+
+      expect((inputHandler as any).keybinds.moveUpArrow).toBe("ArrowUp");
+      expect((inputHandler as any).keybinds.moveLeftArrow).toBe("ArrowLeft");
+      expect((inputHandler as any).keybinds.moveDownArrow).toBe("ArrowDown");
+      expect((inputHandler as any).keybinds.moveRightArrow).toBe("ArrowRight");
+      expect((inputHandler as any).keybinds.zoomOutMinus).toBe("Minus");
+      expect((inputHandler as any).keybinds.zoomOutNumpad).toBe(
+        "NumpadSubtract",
+      );
+      expect((inputHandler as any).keybinds.zoomInEqual).toBe("Equal");
+      expect((inputHandler as any).keybinds.zoomInNumpad).toBe("NumpadAdd");
+    });
+
     test("parses nested object values and flattens them to strings", () => {
       const nested = {
         moveUp: { key: "moveUp", value: "KeyZ" },
@@ -993,6 +1367,253 @@ describe("InputHandler AutoUpgrade", () => {
       );
 
       expect(uiState.ghostStructure).toBe(UnitType.City);
+    });
+  });
+
+  describe("Target player keybind", () => {
+    beforeEach(() => {
+      inputHandler.destroy();
+      inputHandler = new InputHandler(
+        mockGameView,
+        {
+          attackRatio: 20,
+          ghostStructure: null,
+          rocketDirectionUp: true,
+          upgradeMultiplier: 1,
+        },
+        mockCanvas,
+        eventBus,
+      );
+      inputHandler.initialize();
+    });
+
+    afterEach(() => {
+      new UserSettings().removeCached(KEYBINDS_KEY, false);
+    });
+
+    test("N targets the player under the cursor", () => {
+      const targets: DoTargetPlayerEvent[] = [];
+      eventBus.on(DoTargetPlayerEvent, (e) => targets.push(e));
+
+      window.dispatchEvent(new KeyboardEvent("keyup", { code: "KeyN" }));
+
+      expect(targets).toHaveLength(1);
+      // No tile: the runner uses the one under the cursor.
+      expect(targets[0].tile).toBeUndefined();
+    });
+  });
+
+  describe("Quick chat keybind", () => {
+    beforeEach(() => {
+      inputHandler.destroy();
+      inputHandler = new InputHandler(
+        mockGameView,
+        {
+          attackRatio: 20,
+          ghostStructure: null,
+          rocketDirectionUp: true,
+          upgradeMultiplier: 1,
+        },
+        mockCanvas,
+        eventBus,
+      );
+      inputHandler.initialize();
+    });
+
+    afterEach(() => {
+      new UserSettings().removeCached(KEYBINDS_KEY, false);
+    });
+
+    test("R opens quick chat at the last mouse position", () => {
+      const chats: ShowChatMenuEvent[] = [];
+      const refreshes: RefreshGraphicsEvent[] = [];
+      eventBus.on(ShowChatMenuEvent, (e) => chats.push(e));
+      eventBus.on(RefreshGraphicsEvent, (e) => refreshes.push(e));
+
+      window.dispatchEvent(
+        new MouseEvent("mousemove", { clientX: 50, clientY: 60 }),
+      );
+      window.dispatchEvent(new KeyboardEvent("keyup", { code: "KeyR" }));
+
+      expect(chats).toHaveLength(1);
+      expect(chats[0].x).toBe(50);
+      expect(chats[0].y).toBe(60);
+      expect(refreshes).toHaveLength(0);
+    });
+
+    test("Alt+R resets graphics without opening quick chat", () => {
+      const chats: ShowChatMenuEvent[] = [];
+      const refreshes: RefreshGraphicsEvent[] = [];
+      eventBus.on(ShowChatMenuEvent, (e) => chats.push(e));
+      eventBus.on(RefreshGraphicsEvent, (e) => refreshes.push(e));
+
+      window.dispatchEvent(
+        new KeyboardEvent("keyup", { code: "KeyR", altKey: true }),
+      );
+
+      expect(chats).toHaveLength(0);
+      expect(refreshes).toHaveLength(1);
+    });
+
+    test("Ctrl+R and Cmd+R don't open quick chat", () => {
+      const chats: ShowChatMenuEvent[] = [];
+      eventBus.on(ShowChatMenuEvent, (e) => chats.push(e));
+
+      window.dispatchEvent(
+        new KeyboardEvent("keyup", { code: "KeyR", ctrlKey: true }),
+      );
+      window.dispatchEvent(
+        new KeyboardEvent("keyup", { code: "KeyR", metaKey: true }),
+      );
+
+      expect(chats).toHaveLength(0);
+    });
+
+    test("Shift+R resets graphics when altKey is bound to ShiftRight", () => {
+      new UserSettings().setKeybinds({
+        altKey: { value: "ShiftRight", key: "Shift" },
+      });
+
+      const chats: ShowChatMenuEvent[] = [];
+      const refreshes: RefreshGraphicsEvent[] = [];
+      eventBus.on(ShowChatMenuEvent, (e) => chats.push(e));
+      eventBus.on(RefreshGraphicsEvent, (e) => refreshes.push(e));
+
+      window.dispatchEvent(
+        new KeyboardEvent("keyup", { code: "KeyR", shiftKey: true }),
+      );
+
+      expect(chats).toHaveLength(0);
+      expect(refreshes).toHaveLength(1);
+    });
+  });
+
+  describe("Emoji menu keybind", () => {
+    beforeEach(() => {
+      inputHandler.destroy();
+      inputHandler = new InputHandler(
+        mockGameView,
+        {
+          attackRatio: 20,
+          ghostStructure: null,
+          rocketDirectionUp: true,
+          upgradeMultiplier: 1,
+        },
+        mockCanvas,
+        eventBus,
+      );
+      inputHandler.initialize();
+    });
+
+    afterEach(() => {
+      new UserSettings().removeCached(KEYBINDS_KEY, false);
+    });
+
+    test("F opens the emoji menu at the last mouse position", () => {
+      const emitted: ShowEmojiMenuEvent[] = [];
+      eventBus.on(ShowEmojiMenuEvent, (e) => emitted.push(e));
+
+      window.dispatchEvent(
+        new MouseEvent("mousemove", { clientX: 120, clientY: 340 }),
+      );
+      // Opens on keydown, not keyup like most keybinds.
+      window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyF" }));
+      expect(emitted).toHaveLength(1);
+      window.dispatchEvent(new KeyboardEvent("keyup", { code: "KeyF" }));
+
+      expect(emitted).toHaveLength(1);
+      expect(emitted[0].x).toBe(120);
+      expect(emitted[0].y).toBe(340);
+    });
+
+    test("F closes the emoji table when it is already open", () => {
+      const opened: ShowEmojiMenuEvent[] = [];
+      const closed: CloseViewEvent[] = [];
+      eventBus.on(ShowEmojiMenuEvent, (e) => opened.push(e));
+      eventBus.on(CloseViewEvent, (e) => closed.push(e));
+      eventBus.emit(new EmojiTableVisibleEvent(true));
+
+      window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyF" }));
+      window.dispatchEvent(new KeyboardEvent("keyup", { code: "KeyF" }));
+
+      expect(opened).toHaveLength(0);
+      expect(closed).toHaveLength(1);
+    });
+
+    test("favorite keys pick a favorites slot instead of zooming while the table is open", () => {
+      const emojiKeys: EmojiKeyEvent[] = [];
+      eventBus.on(EmojiKeyEvent, (e) => emojiKeys.push(e));
+      eventBus.emit(new EmojiTableVisibleEvent(true));
+
+      window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyQ" }));
+      expect(inputHandler["activeKeys"].has("KeyQ")).toBe(false);
+      window.dispatchEvent(new KeyboardEvent("keyup", { code: "KeyQ" }));
+      window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyD" }));
+      window.dispatchEvent(new KeyboardEvent("keyup", { code: "KeyD" }));
+
+      expect(emojiKeys.map((e) => e.slot)).toEqual([0, 5]);
+    });
+
+    test("keys without an emoji keep their keybind while the table is open", () => {
+      const emojiKeys: EmojiKeyEvent[] = [];
+      const boatAttacks: DoBoatAttackEvent[] = [];
+      eventBus.on(EmojiKeyEvent, (e) => emojiKeys.push(e));
+      eventBus.on(DoBoatAttackEvent, (e) => boatAttacks.push(e));
+      eventBus.emit(new EmojiTableVisibleEvent(true));
+
+      window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyB" }));
+      window.dispatchEvent(new KeyboardEvent("keyup", { code: "KeyB" }));
+
+      expect(emojiKeys).toHaveLength(0);
+      expect(boatAttacks).toHaveLength(1);
+    });
+
+    test("camera keys are not held while the table is open", () => {
+      eventBus.emit(new EmojiTableVisibleEvent(true));
+      window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyW" }));
+      expect(inputHandler["activeKeys"].has("KeyW")).toBe(false);
+    });
+
+    test("typing F then W quickly sends the W favorite without panning", () => {
+      const emojiKeys: EmojiKeyEvent[] = [];
+      eventBus.on(EmojiKeyEvent, (e) => emojiKeys.push(e));
+      // Stand in for the emoji table opening.
+      eventBus.on(ShowEmojiMenuEvent, () =>
+        eventBus.emit(new EmojiTableVisibleEvent(true)),
+      );
+
+      // W goes down before F comes up.
+      window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyF" }));
+      window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyW" }));
+      expect(inputHandler["activeKeys"].has("KeyW")).toBe(false);
+      window.dispatchEvent(new KeyboardEvent("keyup", { code: "KeyF" }));
+      window.dispatchEvent(new KeyboardEvent("keyup", { code: "KeyW" }));
+
+      expect(emojiKeys.map((e) => e.slot)).toEqual([1]);
+    });
+
+    test("opening the table stops a held camera key, and releasing it sends nothing", () => {
+      const emojiKeys: EmojiKeyEvent[] = [];
+      eventBus.on(EmojiKeyEvent, (e) => emojiKeys.push(e));
+      window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyW" }));
+      expect(inputHandler["activeKeys"].has("KeyW")).toBe(true);
+
+      eventBus.emit(new EmojiTableVisibleEvent(true));
+      expect(inputHandler["activeKeys"].has("KeyW")).toBe(false);
+      window.dispatchEvent(new KeyboardEvent("keyup", { code: "KeyW" }));
+
+      expect(emojiKeys).toHaveLength(0);
+    });
+
+    test("keybinds fire normally once the table closes", () => {
+      const boatAttacks: DoBoatAttackEvent[] = [];
+      eventBus.on(DoBoatAttackEvent, (e) => boatAttacks.push(e));
+      eventBus.emit(new EmojiTableVisibleEvent(true));
+      eventBus.emit(new EmojiTableVisibleEvent(false));
+
+      window.dispatchEvent(new KeyboardEvent("keyup", { code: "KeyB" }));
+
+      expect(boatAttacks).toHaveLength(1);
     });
   });
 });

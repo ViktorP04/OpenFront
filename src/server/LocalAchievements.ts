@@ -1,6 +1,10 @@
-import { GameEndInfoSchema } from "../core/Schemas";
-import { GameMapSize, GameMode, GameType } from "../core/game/Game";
-import { maps } from "../core/game/Maps.gen";
+import {
+  GameMapSize,
+  GameMode,
+  GameType,
+} from "@openfront/engine-api/game/GameTypes";
+import { maps } from "@openfront/engine-api/game/Maps.gen";
+import { GameEndInfoSchema } from "@openfront/shared/WireSchemas";
 
 /** Personal, client-reported completion only; never use this as a reward ledger. */
 export function eligibleCompletion(value: unknown, userId: string) {

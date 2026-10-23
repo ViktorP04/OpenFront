@@ -1,7 +1,7 @@
+import { buildAssetUrl } from "@openfront/shared/AssetPaths";
 import ejs from "ejs";
 import type { Response } from "express";
 import fs from "fs/promises";
-import { buildAssetUrl } from "../core/AssetUrls";
 import { setNoStoreHeaders } from "./NoStoreHeaders";
 import { getRuntimeAssetManifest } from "./RuntimeAssetManifest";
 import { ServerEnv } from "./ServerEnv";
@@ -98,6 +98,11 @@ export async function renderHtmlContent(
       ServerEnv.stripePublishableKey() === undefined
         ? undefined
         : JSON.stringify(ServerEnv.stripePublishableKey()),
+    // Same shape: environment-scoped, optional, line dropped when unset.
+    faroCollectorUrl:
+      ServerEnv.faroCollectorUrl() === undefined
+        ? undefined
+        : JSON.stringify(ServerEnv.faroCollectorUrl()),
     manifestHref: buildAssetUrl("manifest.json", assetManifest, cdnBase),
     faviconHref: buildAssetUrl("images/Favicon.svg", assetManifest, cdnBase),
     gameplayScreenshotUrl: buildAssetUrl(

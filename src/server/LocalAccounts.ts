@@ -1,3 +1,7 @@
+import { GameConfigSchema, ID } from "@openfront/engine-api/Schemas";
+import { UserMeResponseSchema } from "@openfront/shared/ApiSchemas";
+import { uuidToBase64url } from "@openfront/shared/Base64";
+import { LocalLeaderboardMetricSchema } from "@openfront/shared/LocalLeaderboard";
 import express, { type Request } from "express";
 import rateLimit from "express-rate-limit";
 import { importJWK, jwtVerify, SignJWT, type JWK } from "jose";
@@ -14,10 +18,6 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import { UserMeResponseSchema } from "../core/ApiSchemas";
-import { uuidToBase64url } from "../core/Base64";
-import { LocalLeaderboardMetricSchema } from "../core/LocalLeaderboard";
-import { GameConfigSchema, ID } from "../core/Schemas";
 import { eligibleCompletion } from "./LocalAchievements";
 import { freeCosmeticFlares, localCosmetics } from "./LocalCosmetics";
 import { LocalEconomy, LocalMatchRewardSchema } from "./LocalEconomy";

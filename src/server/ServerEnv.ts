@@ -1,3 +1,11 @@
+import { GameID } from "@openfront/engine-api/Schemas";
+import { simpleHash } from "@openfront/engine-lib/Util";
+import {
+  ClusterConfig,
+  InstanceLetterSchema,
+} from "@openfront/shared/ClusterConfig";
+import { GameEnv, parseGameEnv } from "@openfront/shared/configuration/Env";
+import { generateGameID } from "@openfront/shared/SharedUtil";
 import { JWK } from "jose";
 import { z } from "zod";
 import {
@@ -5,10 +13,6 @@ import {
   apiUrl,
   localAccountsEnabled,
 } from "../auth/AuthConfig";
-import { ClusterConfig, InstanceLetterSchema } from "../core/ClusterConfig";
-import { GameEnv, parseGameEnv } from "../core/configuration/Config";
-import { GameID } from "../core/Schemas";
-import { generateGameID, simpleHash } from "../core/Util";
 
 const JwksSchema = z.object({
   keys: z
@@ -75,6 +79,14 @@ export class ServerEnv {
   // the inline Stripe flow off (the store falls back to redirect checkout).
   static stripePublishableKey(): string | undefined {
     const v = process.env.STRIPE_PUBLISHABLE_KEY;
+    if (!v) return undefined;
+    return v;
+  }
+  // Optional: the Grafana Faro collector the browser client reports to.
+  // Absent keeps client telemetry off. A public ingest URL, not a secret,
+  // so it travels through BOOTSTRAP_CONFIG like the Stripe key.
+  static faroCollectorUrl(): string | undefined {
+    const v = process.env.FARO_COLLECTOR_URL;
     if (!v) return undefined;
     return v;
   }

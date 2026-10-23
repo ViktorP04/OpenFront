@@ -1,6 +1,6 @@
+import { Difficulty } from "@openfront/engine-api/game/GameTypes";
 import { html, TemplateResult } from "lit";
 import medalIconRaw from "../../../../resources/images/MedalIconWhite.svg?raw";
-import { Difficulty } from "../../../core/game/Game";
 import { translateText } from "../../Utils";
 
 // CSS mask that renders the medal glyph; tint it via `background-color`.
@@ -32,9 +32,9 @@ export function medalIcon(
 ): TemplateResult {
   return html`<div
     class="${sizeClass} ${earned ? "opacity-100" : "opacity-25"}"
-    style="background-color:${MEDAL_COLORS[
-      difficulty
-    ]}; mask:${MEDAL_MASK}; -webkit-mask:${MEDAL_MASK};"
+    style="background-color:${
+      MEDAL_COLORS[difficulty]
+    }; mask:${MEDAL_MASK}; -webkit-mask:${MEDAL_MASK};"
     title=${translateText(`difficulty.${difficulty.toLowerCase()}`)}
   ></div>`;
 }

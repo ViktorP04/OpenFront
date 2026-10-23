@@ -1,9 +1,9 @@
-import { createHash } from "node:crypto";
-import { DatabaseSync } from "node:sqlite";
 import {
   LocalLeaderboardMetric,
   LocalLeaderboardResponse,
-} from "../core/LocalLeaderboard";
+} from "@openfront/shared/LocalLeaderboard";
+import { createHash } from "node:crypto";
+import { DatabaseSync } from "node:sqlite";
 
 /** Read existing durable progress; purchases never lower lifetime earnings. */
 export function localLeaderboard(

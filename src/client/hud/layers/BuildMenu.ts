@@ -1,16 +1,17 @@
-import { css, html, LitElement } from "lit";
-import { customElement, state } from "lit/decorators.js";
-import { translateText } from "../../../client/Utils";
-import { assetUrl } from "../../../core/AssetUrls";
-import { EventBus } from "../../../core/EventBus";
+import { TileRef } from "@openfront/engine-api/game/GameMap";
 import {
   BuildableUnit,
   BuildMenus,
   Gold,
   PlayerBuildableUnitType,
   UnitType,
-} from "../../../core/game/Game";
-import { TileRef } from "../../../core/game/GameMap";
+} from "@openfront/engine-api/game/GameTypes";
+import { renderNumber } from "@openfront/engine-lib/Format";
+import { assetUrl } from "@openfront/shared/AssetUrls";
+import { EventBus } from "@openfront/shared/EventBus";
+import { css, html, LitElement } from "lit";
+import { customElement, state } from "lit/decorators.js";
+import { translateText } from "../../../client/Utils";
 import { Controller } from "../../Controller";
 import {
   CloseViewEvent,
@@ -24,7 +25,6 @@ import {
   SendUpgradeStructureIntentEvent,
 } from "../../Transport";
 import { UIState } from "../../UIState";
-import { renderNumber } from "../../Utils";
 import { GameView } from "../../view";
 const warshipIcon = assetUrl("images/BattleshipIconWhite.svg");
 const cityIcon = assetUrl("images/CityIconWhite.svg");
@@ -428,9 +428,11 @@ export class BuildMenu extends LitElement implements Controller {
                     @click=${() =>
                       this.sendBuildOrUpgrade(buildableUnit, this.clickedTile)}
                     ?disabled=${!enabled}
-                    title=${!enabled
-                      ? translateText("build_menu.not_enough_money")
-                      : ""}
+                    title=${
+                      !enabled
+                        ? translateText("build_menu.not_enough_money")
+                        : ""
+                    }
                   >
                     <img
                       src=${item.icon}
@@ -442,8 +444,9 @@ export class BuildMenu extends LitElement implements Controller {
                       ${item.key && translateText(item.key)}
                     </span>
                     <span class="build-description"
-                      >${item.description &&
-                      translateText(item.description)}</span
+                      >${
+                        item.description && translateText(item.description)
+                      }</span
                     >
                     <span class="build-cost" translate="no">
                       ${renderNumber(
@@ -457,11 +460,13 @@ export class BuildMenu extends LitElement implements Controller {
                         class="align-middle"
                       />
                     </span>
-                    ${item.countable
-                      ? html`<div class="build-count-chip">
-                          <span class="build-count">${this.count(item)}</span>
-                        </div>`
-                      : ""}
+                    ${
+                      item.countable
+                        ? html`<div class="build-count-chip">
+                            <span class="build-count">${this.count(item)}</span>
+                          </div>`
+                        : ""
+                    }
                   </button>
                 `;
               })}

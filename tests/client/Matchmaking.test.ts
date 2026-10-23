@@ -1,11 +1,28 @@
+import type { UserMeResponse } from "@openfront/shared/ApiSchemas";
+import { CloseCode, CloseReason } from "@openfront/shared/CloseCodes";
 import type { Mock } from "vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { UserMeResponse } from "../../src/core/ApiSchemas";
-import { CloseCode, CloseReason } from "../../src/core/CloseCodes";
 
 const apiMocks = vi.hoisted(() => ({
   getUserMe: vi.fn(),
   invalidateUserMe: vi.fn(),
+}));
+
+const alertMocks = vi.hoisted(() => ({
+  construct: vi.fn(),
+  play: vi.fn(),
+}));
+
+vi.mock("howler", () => ({
+  Howl: class {
+    constructor(options: unknown) {
+      alertMocks.construct(options);
+    }
+
+    play() {
+      return alertMocks.play();
+    }
+  },
 }));
 
 // The two ClientEnv reads the version check below depends on: this bundle's
@@ -63,6 +80,7 @@ vi.mock("../../src/client/Utils", () => ({
 }));
 
 import { MatchmakingModal } from "../../src/client/Matchmaking";
+import { UserSettings } from "../../src/client/UserSettings";
 
 class FakeWebSocket {
   static readonly CONNECTING = 0;
@@ -122,6 +140,10 @@ function userMe(
 ): UserMeResponse {
   return {
     user,
+    steamLicence: false,
+    steamLicenceSince: null,
+    noticesSeen: [],
+    pendingMessages: [],
     player: {
       publicId: "player-id",
       adfree: false,
@@ -155,7 +177,7 @@ function installClanSelection(tag: string | null) {
   return input;
 }
 
-async function openAndJoin(mode: "1v1" | "2v2") {
+async function openAndJoin(mode: "1v1" | "2v2" | "clanwars") {
   const modal = new MatchmakingModal();
   modal.mode = mode;
   modal.open();
@@ -218,6 +240,67 @@ describe("MatchmakingModal clan-aware joins", () => {
     expect(message).toEqual({ type: "join", jwt: "play-token" });
     expect(message).not.toHaveProperty("clanTag");
   });
+
+  it("queues clan wars for the selected current membership", async () => {
+    apiMocks.getUserMe.mockResolvedValue(userMe(["ALLY", "BETA"]));
+    installClanSelection("beta");
+
+    const { socket, message } = await openAndJoin("clanwars");
+
+    expect(socket.url).toContain("mode=clanwars");
+    expect(message).toEqual({
+      type: "join",
+      jwt: "play-token",
+      clanTag: "BETA",
+    });
+  });
+
+  it.each([
+    ["clanwars", { count: 5, clanCount: 2 }, true],
+    ["2v2", { count: 5 }, false],
+  ] as const)(
+    "shows how many are queued for the player's clan in %s",
+    async (mode, broadcast, showsClan) => {
+      apiMocks.getUserMe.mockResolvedValue(userMe(["ALLY"]));
+      installClanSelection("ALLY");
+      const { modal, socket } = await openAndJoin(mode);
+      document.body.appendChild(modal);
+
+      socket.onmessage!({
+        data: JSON.stringify({ type: "queue-size", ...broadcast }),
+      });
+      await modal.updateComplete;
+
+      expect(modal.textContent).toContain("matchmaking_modal.queue_size");
+      expect(
+        modal.textContent?.includes("matchmaking_modal.clan_queue_size"),
+      ).toBe(showsClan);
+      modal.remove();
+    },
+  );
+
+  it.each([null, "STALE"])(
+    "does not queue clan wars without a selected current membership (%s)",
+    async (tag) => {
+      apiMocks.getUserMe.mockResolvedValue(userMe(["ALLY"]));
+      installClanSelection(tag);
+      const messages: string[] = [];
+      const onMessage = (e: Event) =>
+        messages.push((e as CustomEvent<{ message: string }>).detail.message);
+      window.addEventListener("show-message", onMessage);
+
+      const modal = new MatchmakingModal();
+      modal.mode = "clanwars";
+      modal.open();
+      await vi.waitFor(() =>
+        expect(messages).toEqual(["matchmaking_modal.clan_required"]),
+      );
+      window.removeEventListener("show-message", onMessage);
+
+      expect(sockets).toHaveLength(0);
+      expect(modal.isOpen()).toBe(false);
+    },
+  );
 
   it("refreshes memberships and clears a stale selection on invalid_clan", async () => {
     apiMocks.getUserMe
@@ -387,6 +470,57 @@ describe("MatchmakingModal identity gate", () => {
     );
     expect(sockets).toHaveLength(0);
     expect(modal.isOpen()).toBe(false);
+  });
+});
+
+describe("MatchmakingModal trust gate", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    sockets.length = 0;
+    apiMocks.getUserMe.mockReset();
+    vi.stubGlobal("WebSocket", FakeWebSocket);
+    installClanSelection(null);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  function withTrust(
+    trustTier: UserMeResponse["player"]["trustTier"],
+  ): UserMeResponse {
+    const response = userMe();
+    return { ...response, player: { ...response.player, trustTier } };
+  }
+
+  function notTrusted(modal: MatchmakingModal): boolean {
+    return (modal as unknown as { notTrusted: boolean }).notTrusted;
+  }
+
+  // The service gates ranked on trust behind a flag, so the client must
+  // queue whatever the tier says and leave the decision to the 4103 close.
+  it.each(["untrusted", "trusted", null, undefined] as const)(
+    "queues an account whose tier is %s",
+    async (tier) => {
+      apiMocks.getUserMe.mockResolvedValue(withTrust(tier));
+      const modal = new MatchmakingModal();
+      modal.open();
+      await vi.waitFor(() => expect(sockets).toHaveLength(1));
+      expect(notTrusted(modal)).toBe(false);
+    },
+  );
+
+  it("stops without reconnecting when the service refuses as untrusted", async () => {
+    apiMocks.getUserMe.mockResolvedValue(withTrust("trusted"));
+    const { modal, socket } = await openAndJoin("1v1");
+    socket.serverClose(CloseCode.NotTrusted, CloseReason.NotTrusted);
+    await vi.runAllTimersAsync();
+
+    expect(modal.isOpen()).toBe(true);
+    expect(notTrusted(modal)).toBe(true);
+    expect(sockets).toHaveLength(1);
   });
 });
 
@@ -688,5 +822,168 @@ describe("MatchmakingModal queue join carries the page's site", () => {
     const { socket } = await openAndJoin("1v1");
 
     expect(socket.url).not.toContain("site=");
+  });
+});
+
+describe("MatchmakingModal game-start alert", () => {
+  const notificationTitles: string[] = [];
+  const closeNotification = vi.fn();
+
+  class FakeNotification {
+    static permission: NotificationPermission = "default";
+    static requestPermission = vi.fn(async () => "granted" as const);
+
+    onclick: ((event: Event) => void) | null = null;
+    close = closeNotification;
+
+    constructor(title: string) {
+      notificationTitles.push(title);
+    }
+  }
+
+  let modal: MatchmakingModal | null = null;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    sockets.length = 0;
+    apiMocks.getUserMe.mockReset().mockResolvedValue(userMe());
+    apiMocks.invalidateUserMe.mockReset();
+    alertMocks.construct.mockReset();
+    alertMocks.play.mockReset();
+    notificationTitles.length = 0;
+    closeNotification.mockReset();
+    FakeNotification.permission = "default";
+    FakeNotification.requestPermission.mockClear();
+    localStorage.clear();
+    const statics = UserSettings as unknown as {
+      cache: Map<string, string | null>;
+      playerId: string | null;
+    };
+    statics.cache.clear();
+    statics.playerId = null;
+    vi.stubGlobal("WebSocket", FakeWebSocket);
+    vi.stubGlobal("Notification", FakeNotification);
+    vi.spyOn(console, "log").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    modal?.close();
+    modal?.remove();
+    modal = null;
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it("uses the lobby bell and alerts only after a ranked match is assigned", async () => {
+    const joined = await openAndJoin("1v1");
+    modal = joined.modal;
+    document.body.append(modal);
+    await modal.updateComplete;
+
+    const bell = modal.querySelector<HTMLButtonElement>(
+      '[aria-label="public_lobby.notify_off"]',
+    );
+    expect(bell).not.toBeNull();
+    expect(bell?.getAttribute("aria-pressed")).toBe("false");
+
+    bell?.click();
+    await modal.updateComplete;
+
+    expect(FakeNotification.requestPermission).toHaveBeenCalledOnce();
+    expect(alertMocks.construct).toHaveBeenCalledWith({
+      src: ["/sounds/effects/game-start-alert.mp3"],
+    });
+    expect(
+      modal.querySelector('[aria-label="public_lobby.notify_on"]'),
+    ).not.toBeNull();
+
+    // Queueing alone is not a game start. The shared event is ignored until
+    // matchmaking has actually assigned this modal a game.
+    document.dispatchEvent(new CustomEvent("game-starting"));
+    expect(alertMocks.play).not.toHaveBeenCalled();
+
+    joined.socket.onmessage?.({
+      data: JSON.stringify({
+        type: "match-assignment",
+        gameId: "cAbCd12345",
+      }),
+    });
+    FakeNotification.permission = "granted";
+    document.dispatchEvent(new CustomEvent("game-starting"));
+
+    expect(alertMocks.play).toHaveBeenCalledOnce();
+    expect(notificationTitles).toEqual(["public_lobby.notify_started"]);
+  });
+
+  it("stays armed across a cancellation requeue but resets when leaving", async () => {
+    const joined = await openAndJoin("1v1");
+    modal = joined.modal;
+    document.body.append(modal);
+    await modal.updateComplete;
+
+    modal
+      .querySelector<HTMLButtonElement>(
+        '[aria-label="public_lobby.notify_off"]',
+      )
+      ?.click();
+    await modal.updateComplete;
+
+    joined.socket.onmessage?.({
+      data: JSON.stringify({
+        type: "match-assignment",
+        gameId: "cAbCd12345",
+      }),
+    });
+    expect(modal.requeue()).toBe(true);
+    await modal.updateComplete;
+    expect(
+      modal.querySelector('[aria-label="public_lobby.notify_on"]'),
+    ).not.toBeNull();
+
+    modal.close();
+    await modal.updateComplete;
+    expect(
+      modal.querySelector('[aria-label="public_lobby.notify_off"]'),
+    ).not.toBeNull();
+  });
+
+  it("arms from the saved default without a toast or permission prompt", async () => {
+    new UserSettings().setLobbyStartAlerts(true);
+    const dispatchSpy = vi.spyOn(window, "dispatchEvent");
+    const joined = await openAndJoin("1v1");
+    modal = joined.modal;
+    document.body.append(modal);
+    await modal.updateComplete;
+
+    expect(
+      modal.querySelector('[aria-label="public_lobby.notify_on"]'),
+    ).not.toBeNull();
+    expect(alertMocks.construct).toHaveBeenCalledOnce();
+    expect(FakeNotification.requestPermission).not.toHaveBeenCalled();
+    expect(
+      dispatchSpy.mock.calls.filter(
+        ([event]) => (event as Event).type === "show-message",
+      ),
+    ).toHaveLength(0);
+
+    joined.socket.onmessage?.({
+      data: JSON.stringify({
+        type: "match-assignment",
+        gameId: "cAbCd12345",
+      }),
+    });
+    document.dispatchEvent(new CustomEvent("game-starting"));
+
+    expect(alertMocks.play).toHaveBeenCalledOnce();
+    // The setting is a default, not a lock: the bell still turns it off.
+    modal
+      .querySelector<HTMLButtonElement>('[aria-label="public_lobby.notify_on"]')
+      ?.click();
+    await modal.updateComplete;
+    expect(
+      modal.querySelector('[aria-label="public_lobby.notify_off"]'),
+    ).not.toBeNull();
+    expect(new UserSettings().lobbyStartAlerts()).toBe(true);
   });
 });

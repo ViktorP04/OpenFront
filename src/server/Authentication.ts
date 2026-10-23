@@ -1,15 +1,15 @@
-import { jwtVerify } from "jose";
-import { createHash } from "node:crypto";
-import { z } from "zod";
-import { authPolicy } from "../auth/AuthConfig";
 import {
   TokenPayload,
   TokenPayloadSchema,
   UserMeResponse,
   UserMeResponseSchema,
-} from "../core/ApiSchemas";
-import { GameEnv } from "../core/configuration/Config";
-import { PersistentIdSchema } from "../core/Schemas";
+} from "@openfront/shared/ApiSchemas";
+import { GameEnv } from "@openfront/shared/configuration/Env";
+import { PersistentIdSchema } from "@openfront/shared/WireSchemas";
+import { jwtVerify } from "jose";
+import { createHash } from "node:crypto";
+import { z } from "zod";
+import { authPolicy } from "../auth/AuthConfig";
 import { ServerEnv } from "./ServerEnv";
 
 type TokenVerificationResult =
@@ -87,12 +87,11 @@ export async function verifyClientToken(
   }
 }
 
+export type UserMeError = { type: "error"; status?: number; message: string };
+
 export async function getUserMe(
   token: string,
-): Promise<
-  | { type: "success"; response: UserMeResponse }
-  | { type: "error"; message: string }
-> {
+): Promise<{ type: "success"; response: UserMeResponse } | UserMeError> {
   try {
     // Get the user object
     const response = await fetch(ServerEnv.accountApiBase() + "/users/@me", {
@@ -105,6 +104,7 @@ export async function getUserMe(
     if (response.status !== 200) {
       return {
         type: "error",
+        status: response.status,
         message: `Failed to fetch user me: ${response.statusText}`,
       };
     }
