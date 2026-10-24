@@ -48,8 +48,12 @@ rule, not server-side secrecy from a modified client.
 
 Both units record build/loss/capture stats and support snapshots, resumed games,
 and replays. New enum, stat, and atlas entries are appended to preserve existing
-indices. Bot nations continue using their existing build choices and can fight
-submarines with their normal warships.
+indices. Established AI nations occasionally supplement their normal build choices
+with custom units, keeping at least twice the purchase cost in gold before buying.
+They build up to two batteries and two radar stations (radar only with fog),
+and upgrade their range up to level 3. They keep up to two submarines, sending
+idle subs toward visible military ships or exploring reachable water. Hidden
+enemy units and trade ships are not used to choose submarine destinations.
 
 Balance values live in `packages/engine-lib/src/configuration/Config.ts`; costs
 live in `packages/engine/src/configuration/EngineConfig.ts`. The battery range
