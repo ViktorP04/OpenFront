@@ -92,6 +92,7 @@ describe("PlayerInfoOverlay", () => {
   };
 
   const makeGame = (myPlayer: unknown, isReplay = false) => ({
+    isTileVisible: () => true,
     isValidCoord: () => true,
     ref: () => 42,
     owner: () => hovered,
@@ -127,6 +128,18 @@ describe("PlayerInfoOverlay", () => {
     expect(out).toContain("opacity-100 visible");
     expect(out).toContain("Bob");
     expect(out).toContain("text-green-500");
+  });
+
+  it("hides the card when the hovered area loses vision", () => {
+    const game = makeGame(null);
+    overlay.game = game as never;
+    overlay.maybeShow(10, 10);
+    expect(flatten(overlay.render())).toContain("opacity-100 visible");
+    game.isTileVisible = () => false;
+    overlay.tick();
+    expect(flatten(overlay.render())).toContain("opacity-0 invisible");
+    overlay.maybeShow(10, 10);
+    expect(flatten(overlay.render())).toContain("opacity-0 invisible");
   });
 
   it("shows a white name when there is no local player", () => {

@@ -60,6 +60,7 @@ export interface UnitParamsMap {
   };
 
   [UnitType.Submarine]: { patrolTile: TileRef };
+  [UnitType.RadarStation]: Record<string, never>;
   [UnitType.CoastalBattery]: Record<string, never>;
 
   [UnitType.Warship]: {

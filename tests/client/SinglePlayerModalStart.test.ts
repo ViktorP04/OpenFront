@@ -39,6 +39,8 @@ describe("SinglePlayerModal start", () => {
     // One real unit and one junk entry: the start path must keep only
     // values that are actual UnitTypes.
     modal.disabledUnits = [UnitType.Warship, "Bogus"];
+    expect(modal.fogOfWar).toBe(false);
+    modal.fogOfWar = true;
 
     await modal.startGame();
 
@@ -46,6 +48,7 @@ describe("SinglePlayerModal start", () => {
     expect(events[0].source).toBe("singleplayer");
     const config = events[0].gameStartInfo.config;
     expect(config.playerTeams).toBe(4);
+    expect(config.fogOfWar).toBe(true);
     expect(config.disabledUnits).toEqual([UnitType.Warship]);
   });
 });

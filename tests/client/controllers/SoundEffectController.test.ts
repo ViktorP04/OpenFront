@@ -30,7 +30,7 @@ describe("SoundEffectController", () => {
 
   function tickWithUnits(...us: Array<{ id: () => number }>) {
     tick++;
-    units = new Map(us.map((u) => [u.id(), u]));
+    units = new Map(us.map((u) => [u.id(), { isVisible: () => true, ...u }]));
     game.updatesSinceLastTick = () => ({
       [GameUpdateType.Unit]: us.map((u) => ({ id: u.id() })),
     });
@@ -67,6 +67,12 @@ describe("SoundEffectController", () => {
     tick += 5;
     tickWithUnits(makeDetonatedWarhead(30));
     expect(played).toEqual(["atom-hit", "atom-hit"]);
+  });
+
+  it("keeps detonations outside vision silent", () => {
+    const hidden = { ...makeDetonatedWarhead(1), isVisible: () => false };
+    tickWithUnits(hidden);
+    expect(played).toEqual([]);
   });
 
   it("does not play a boom for intercepted warheads", () => {

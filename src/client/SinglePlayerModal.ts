@@ -195,6 +195,7 @@ export class SinglePlayerModal extends BaseModal {
   @state() private maxTimerValue: number | undefined =
     DEFAULT_OPTIONS.maxTimerValue;
   @state() private instantBuild: boolean = DEFAULT_OPTIONS.instantBuild;
+  @state() private fogOfWar: boolean = false;
   @state() private randomSpawn: boolean = DEFAULT_OPTIONS.randomSpawn;
   @state() private useRandomMap: boolean = DEFAULT_OPTIONS.useRandomMap;
   @state() private gameMode: GameMode = DEFAULT_OPTIONS.gameMode;
@@ -556,6 +557,10 @@ export class SinglePlayerModal extends BaseModal {
                     checked: this.instantBuild,
                   },
                   {
+                    labelKey: "game_settings.fog_of_war",
+                    checked: this.fogOfWar,
+                  },
+                  {
                     labelKey: "game_settings.random_spawn",
                     checked: this.randomSpawn,
                   },
@@ -641,6 +646,7 @@ export class SinglePlayerModal extends BaseModal {
       this.maxTimer !== DEFAULT_OPTIONS.maxTimer ||
       this.instantBuild !== DEFAULT_OPTIONS.instantBuild ||
       this.randomSpawn !== DEFAULT_OPTIONS.randomSpawn ||
+      this.fogOfWar ||
       this.gameMode !== DEFAULT_OPTIONS.gameMode ||
       this.goldMultiplier !== DEFAULT_OPTIONS.goldMultiplier ||
       this.startingGold !== DEFAULT_OPTIONS.startingGold ||
@@ -715,6 +721,7 @@ export class SinglePlayerModal extends BaseModal {
     this.maxTimerValue = DEFAULT_OPTIONS.maxTimerValue;
     this.instantBuild = DEFAULT_OPTIONS.instantBuild;
     this.randomSpawn = DEFAULT_OPTIONS.randomSpawn;
+    this.fogOfWar = false;
     this.teamCount = DEFAULT_OPTIONS.teamCount;
     this.disabledUnits = [...DEFAULT_OPTIONS.disabledUnits];
     this.goldMultiplier = DEFAULT_OPTIONS.goldMultiplier;
@@ -810,6 +817,9 @@ export class SinglePlayerModal extends BaseModal {
     switch (labelKey) {
       case "game_settings.instant_build":
         this.instantBuild = checked;
+        break;
+      case "game_settings.fog_of_war":
+        this.fogOfWar = checked;
         break;
       case "game_settings.random_spawn":
         this.randomSpawn = checked;
@@ -1137,6 +1147,7 @@ export class SinglePlayerModal extends BaseModal {
             infiniteTroops: this.infiniteTroops,
             instantBuild: this.instantBuild,
             randomSpawn: this.randomSpawn,
+            fogOfWar: this.fogOfWar,
             disabledUnits: this.disabledUnits.filter((unit): unit is UnitType =>
               Object.values(UnitType).includes(unit),
             ),

@@ -115,6 +115,7 @@ export class SoundEffectController implements Controller {
   }
 
   private handleUnit(unit: UnitView): void {
+    if (!unit.isVisible()) return;
     if (unit.isActive() && unit.createdAt() === this.game.ticks()) {
       this.onCreated(unit);
     }

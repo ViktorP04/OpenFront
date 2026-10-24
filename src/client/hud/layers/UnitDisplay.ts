@@ -30,6 +30,7 @@ import {
   warshipIcon,
   submarineIcon,
   coastalBatteryIcon,
+  radarStationIcon,
 } from "../HotbarIcons";
 import { TutorialHighlight, TutorialHighlightEvent } from "../Tutorial";
 
@@ -192,6 +193,7 @@ export class UnitDisplay extends LitElement implements Controller {
             this.getHotkey("buildSamLauncher", "Digit6"),
           )}
           ${this.renderUnitItem(submarineIcon, myPlayer.totalUnitLevels(UnitType.Submarine), UnitType.Submarine, "submarine", "")}
+          ${this.game.config().fogOfWar() ? this.renderUnitItem(radarStationIcon, myPlayer.totalUnitLevels(UnitType.RadarStation), UnitType.RadarStation, "radar_station", "") : ""}
           ${this.renderUnitItem(coastalBatteryIcon, myPlayer.totalUnitLevels(UnitType.CoastalBattery), UnitType.CoastalBattery, "coastal_battery", "")}
           ${this.renderUnitItem(
             warshipIcon,

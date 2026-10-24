@@ -136,3 +136,22 @@ describe("HostLobbyModal seated player count", () => {
     expect(modal.seatedPlayerCount()).toBe(2);
   });
 });
+
+describe("host fog of war configuration", () => {
+  it("preserves a returning lobby's fog setting and sends it with subsequent edits", async () => {
+    const modal = new HostLobbyModal() as any;
+    modal.lobbyId = LOBBY;
+    const info = lobbyInfo(undefined);
+    info.lobby.gameConfig!.fogOfWar = true;
+    modal.handleLobbyInfo(info);
+    expect(modal.fogOfWar).toBe(true);
+    modal.constructUrl = vi.fn(async () => "http://localhost/");
+    modal.updateLobbyHistory = vi.fn();
+    let config: any;
+    modal.addEventListener("update-game-config", (e: CustomEvent) => {
+      config = e.detail.config;
+    });
+    await modal.putGameConfig();
+    expect(config.fogOfWar).toBe(true);
+  });
+});

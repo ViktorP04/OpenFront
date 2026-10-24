@@ -391,7 +391,7 @@ export class BuildPreviewController implements Controller {
         : new Set();
     const sams: SAMInfo[] = [];
     for (const s of this.game.units(UnitType.SAMLauncher)) {
-      if (!s.isActive()) continue;
+      if (!s.isActive() || !s.isVisible()) continue;
       const owner = s.owner();
       if (owner === myPlayer) continue;
       if (
@@ -469,6 +469,9 @@ export class BuildPreviewController implements Controller {
         break;
       case UnitType.Factory:
         rangeRadius = this.game.config().trainStationMaxRange();
+        break;
+      case UnitType.RadarStation:
+        rangeRadius = 150;
         break;
       case UnitType.CoastalBattery:
         rangeRadius = this.game.config().coastalBatteryRange();

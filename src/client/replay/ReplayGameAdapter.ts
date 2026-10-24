@@ -69,6 +69,9 @@ export class ReplayUnitView {
   targetTile(): TileRef | undefined {
     return (this.state.targetTile ?? undefined) as TileRef | undefined;
   }
+  isVisible(): boolean {
+    return true;
+  }
   isActive(): boolean {
     return this.state.isActive;
   }
@@ -377,6 +380,12 @@ export class ReplayGameView {
     return this.frame?.names.get(playerID);
   }
 
+  isTileVisible(_tile: TileRef): boolean {
+    return true;
+  }
+  isSpectator(): boolean {
+    return true;
+  }
   config(): Config {
     return this._config;
   }

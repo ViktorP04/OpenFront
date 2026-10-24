@@ -93,6 +93,10 @@ export class Config {
     private _spectator: boolean = false,
   ) {}
 
+  fogOfWar(): boolean {
+    return this._gameConfig.fogOfWar ?? false;
+  }
+
   isReplay(): boolean {
     return this._isReplay;
   }
@@ -238,6 +242,9 @@ export class Config {
     switch (type) {
       case UnitType.Submarine:
         info = { maxHealth: 600 };
+        break;
+      case UnitType.RadarStation:
+        info = { constructionDuration: this.instantBuild() ? 0 : 120 };
         break;
       case UnitType.CoastalBattery:
         info = { constructionDuration: this.instantBuild() ? 0 : 80 };

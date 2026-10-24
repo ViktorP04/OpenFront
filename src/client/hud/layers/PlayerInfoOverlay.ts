@@ -233,6 +233,10 @@ export class PlayerInfoOverlay extends LitElement implements Controller {
     const tile = this.game.ref(worldCoord.x, worldCoord.y);
     if (!tile) return;
 
+    if (!this.game.isTileVisible(tile)) {
+      this.setVisible(false);
+      return;
+    }
     const owner = this.game.owner(tile);
 
     if (owner && owner.isPlayer()) {
@@ -253,7 +257,7 @@ export class PlayerInfoOverlay extends LitElement implements Controller {
         )
         .filter(
           (u) =>
-            (u.type() !== UnitType.Submarine || u.isVisible()) &&
+            u.isVisible() &&
             euclideanDistWorld(worldCoord, u.tile(), this.game) < 50,
         )
         .sort(distSortUnitWorld(worldCoord, this.game));
@@ -312,6 +316,11 @@ export class PlayerInfoOverlay extends LitElement implements Controller {
   }
 
   tick() {
+    if (
+      (this.tile !== null && !this.game.isTileVisible(this.tile)) ||
+      (this.unit && !this.unit.isVisible())
+    )
+      this.hide();
     // Keep the action buttons current while the mouse rests on a player.
     if (this._isInfoVisible && this.player && this.tile !== null) {
       this.refreshPlayerActions(this.player, this.tile);
@@ -366,7 +375,16 @@ export class PlayerInfoOverlay extends LitElement implements Controller {
             src=${icon}
             class="w-3 h-3 lg:w-4 lg:h-4 object-contain shrink-0"
           />
-          <span>${player.totalUnitLevels(type)}</span>
+          <span
+            >${
+              this.game.config().fogOfWar() && !this.game.isSpectator()
+                ? player
+                    .units(type)
+                    .filter((u) => u.isVisible())
+                    .reduce((total, u) => total + u.level(), 0)
+                : player.totalUnitLevels(type)
+            }</span
+          >
         </div>`
       : "";
   }

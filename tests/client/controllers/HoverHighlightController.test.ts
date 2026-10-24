@@ -21,6 +21,12 @@ describe("HoverHighlightController", () => {
       [new PlayerInfo("player1", PlayerType.Human, null, "player1_id")],
     );
 
+    game.isTileVisible = () => true;
+    const allUnits = game.units.bind(game);
+    game.units = (...types: UnitType[]) =>
+      allUnits(...types).map((u: any) =>
+        Object.assign(u, { isVisible: () => true }),
+      );
     eventBus = { on: vi.fn() };
     transformHandler = {
       screenToWorldCoordinatesFloat: vi
@@ -63,6 +69,21 @@ describe("HoverHighlightController", () => {
     );
     expect(view.setMouseWorldPos).toHaveBeenCalledWith(100.5, 200.5);
     expect(view.setHighlightOwner).toHaveBeenCalledWith(player1.smallID());
+  });
+
+  it("does not identify a hidden land owner", () => {
+    game.isTileVisible = () => false;
+    view.setHighlightOwner.mockClear();
+    const controller = new HoverHighlightController(
+      game,
+      eventBus,
+      transformHandler,
+      view,
+    );
+    controller["lastOwnerID"] = 1;
+    controller.init();
+    eventBus.on.mock.calls[0][1](new MouseMoveEvent(200, 200));
+    expect(view.setHighlightOwner).toHaveBeenCalledWith(0);
   });
 
   it("uses naval hover highlighting when tile is not land", () => {

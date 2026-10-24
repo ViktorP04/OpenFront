@@ -46,6 +46,7 @@ import {
   applyPackedPlayerStats,
   embargoSmallIDs,
 } from "./EntityState";
+import { FogOfWar, FOG_BIT, unitVisionRadius } from "./FogOfWar";
 import {
   MotionPlanResolver,
   type GridMotionPlan,
@@ -103,6 +104,14 @@ export class GameView implements GameLike {
    */
   private _frame: FrameData;
   private _structuresDirty = false;
+  private fog?: FogOfWar;
+  private visionTick = -1;
+  private visibleFrame?: FrameData;
+  private visibleFrameTick = -1;
+  private renderedFog = false;
+  private fogTiles?: Uint16Array;
+  private fogTrails?: Uint16Array;
+  private fogRails?: Uint8Array;
   /** True until first populateFrame() — controls full-vs-delta tile upload. */
   private _firstPopulate = true;
 
@@ -627,15 +636,110 @@ export class GameView implements GameLike {
     }
   }
 
-  /** Public accessor: the renderer reads this and uploads to the GPU. */
-  frameData(): FrameData {
-    const hidden = this.units(UnitType.Submarine).filter(
-      (unit) => !unit.isVisible(),
+  private vision(): Uint8Array | null {
+    if (!this._config.fogOfWar() || this.inSpawnPhase() || this.isSpectator())
+      return null;
+    this.fog ??= new FogOfWar(this.width(), this.height());
+    if (this.visionTick !== this.ticks()) {
+      const viewer = this.myPlayer()!;
+      const friendly = new Set(
+        this.players()
+          .filter((p) => p === viewer || p.isFriendly(viewer))
+          .map((p) => p.smallID()),
+      );
+      const sources = this.units()
+        .filter(
+          (u) => friendly.has(u.owner().smallID()) && !u.isUnderConstruction(),
+        )
+        .map((u) => ({ pos: u.tile(), radius: unitVisionRadius(u.type()) }));
+      this.fog.update(this._map.tileStateBuffer(), friendly, sources);
+      this.visionTick = this.ticks();
+    }
+    return this.fog.visible;
+  }
+
+  isTileVisible(tile: TileRef): boolean {
+    const vision = this.vision();
+    return (
+      vision === null ||
+      (tile >= 0 && tile < vision.length && vision[tile] !== 0)
     );
-    if (hidden.length === 0) return this._frame;
-    const units = new Map(this._frame.units);
-    for (const unit of hidden) units.delete(unit.id());
-    return { ...this._frame, units };
+  }
+
+  /** Renderer gets a masked copy; the deterministic simulation mirror stays intact. */
+  frameData(): FrameData {
+    if (this.visibleFrameTick === this._frame.tick && this.visibleFrame)
+      return this.visibleFrame;
+    const frame = this._frame;
+    const vision = this.vision();
+    const hidden = this.units().filter((unit) => !unit.isVisible());
+    let result = frame;
+    if (vision !== null || hidden.length > 0) {
+      const units = new Map(frame.units);
+      for (const unit of hidden) units.delete(unit.id());
+      result = { ...frame, units };
+    }
+    if (vision !== null) {
+      const first = !this.renderedFog;
+      this.fogTiles ??= new Uint16Array(frame.tileState.length);
+      this.fogTrails ??= new Uint16Array(frame.trailState.length);
+      this.fogRails ??= new Uint8Array(frame.railroadState.length);
+      const changed: number[] = [];
+      for (let tile = 0; tile < vision.length; tile++) {
+        const state = vision[tile] ? frame.tileState[tile] : FOG_BIT;
+        if (state !== this.fogTiles[tile]) changed.push(tile);
+        this.fogTiles[tile] = state;
+        this.fogTrails[tile] = vision[tile] ? frame.trailState[tile] : 0;
+        this.fogRails[tile] = vision[tile] ? frame.railroadState[tile] : 0;
+      }
+      const at = (x: number, y: number) =>
+        this.isValidCoord(Math.floor(x), Math.floor(y)) &&
+        vision[this.ref(Math.floor(x), Math.floor(y))] !== 0;
+      result = {
+        ...result,
+        tileState: this.fogTiles,
+        trailState: this.fogTrails,
+        railroadState: this.fogRails,
+        changedTiles: first ? null : changed,
+        trailDirtyRowMin: 0,
+        trailDirtyRowMax: this.height() - 1,
+        railroadDirty: true,
+        revealedRailTiles: frame.revealedRailTiles.filter(
+          (t) => vision[t] !== 0,
+        ),
+        structuresDirty: true,
+        names: new Map(
+          [...frame.names].filter(([, name]) => at(name.x, name.y)),
+        ),
+        attackRings: frame.attackRings.filter((ring) => at(ring.x, ring.y)),
+        nukeTelegraphs: frame.nukeTelegraphs.filter((nuke) =>
+          at(nuke.x, nuke.y),
+        ),
+        // A ribbon can cross fog even if its missile is visible. Suppress the
+        // cosmetic ribbon; the regular per-tile trail is masked above.
+        spiralRibbons: [],
+        events: {
+          deadUnits: frame.events.deadUnits.filter((e) => vision[e.pos] !== 0),
+          conquestEvents: frame.events.conquestEvents.filter((e) =>
+            at(e.x, e.y),
+          ),
+          bonusEvents: frame.events.bonusEvents.filter(
+            (e) => vision[e.tile] !== 0,
+          ),
+        },
+      };
+    } else if (this.renderedFog) {
+      result = {
+        ...result,
+        changedTiles: null,
+        railroadDirty: true,
+        structuresDirty: true,
+      };
+    }
+    this.renderedFog = vision !== null;
+    this.visibleFrame = result;
+    this.visibleFrameTick = frame.tick;
+    return result;
   }
 
   /**

@@ -251,3 +251,32 @@ describe("Submarine", () => {
     await navalRoundTrip(game, 85);
   });
 });
+
+describe("Radar Station", () => {
+  it("requires fog of war and uses ordinary owned-land structure placement", () => {
+    expect(a.canBuild(UnitType.RadarStation, at(4, 20))).toBe(false);
+    game.config().gameConfig().fogOfWar = true;
+    expect(a.canBuild(UnitType.RadarStation, at(4, 20))).not.toBe(false);
+    expect(a.canBuild(UnitType.RadarStation, at(100, 20))).toBe(false);
+    const config = new EngineConfig(
+      { ...game.config().gameConfig(), infiniteGold: false },
+      false,
+    );
+    expect(config.unitInfo(UnitType.RadarStation).cost(game, a)).toBe(300000n);
+  });
+  it("constructs, survives snapshots, and transfers to its captor", async () => {
+    game.config().gameConfig().fogOfWar = true;
+    game.addExecution(
+      new ConstructionExecution(a, UnitType.RadarStation, at(4, 20)),
+    );
+    executeTicks(game, 2);
+    const radar = a.units(UnitType.RadarStation)[0];
+    expect(radar.isUnderConstruction()).toBe(true);
+    await navalRoundTrip(game, 130);
+    expect(radar.isUnderConstruction()).toBe(false);
+    b.captureUnit(radar);
+    expect(radar.owner()).toBe(b);
+    expect(b.units(UnitType.RadarStation)).toContain(radar);
+    await navalRoundTrip(game, 2);
+  });
+});

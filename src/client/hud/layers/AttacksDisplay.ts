@@ -90,7 +90,7 @@ export class AttacksDisplay extends LitElement implements Controller {
     for (const unitID of this.incomingBoatIDs) {
       const unit = this.game.unit(unitID);
       if (unit && unit.isActive() && unit.type() === UnitType.TransportShip) {
-        resolvedIncomingBoats.push(unit);
+        if (unit.isVisible()) resolvedIncomingBoats.push(unit);
       } else {
         this.incomingBoatIDs.delete(unitID);
       }

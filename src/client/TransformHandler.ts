@@ -206,7 +206,12 @@ export class TransformHandler {
   onGoToPlayer(event: GoToPlayerEvent) {
     this.clearTarget();
     const nameLocation = event.player.nameLocation();
-    if (!nameLocation) {
+    if (
+      !nameLocation ||
+      !this.game.isTileVisible(
+        this.game.ref(Math.floor(nameLocation.x), Math.floor(nameLocation.y)),
+      )
+    ) {
       return;
     }
     this.target = new Cell(nameLocation.x, nameLocation.y);
@@ -221,6 +226,7 @@ export class TransformHandler {
   }
 
   onGoToUnit(event: GoToUnitEvent) {
+    if (!event.unit.isVisible()) return;
     this.clearTarget();
     this.target = new Cell(
       this.game.x(event.unit.lastTile()),

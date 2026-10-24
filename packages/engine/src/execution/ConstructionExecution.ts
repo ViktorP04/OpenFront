@@ -148,6 +148,8 @@ export class ConstructionExecution implements Execution {
           new SubmarineExecution({ owner: player, patrolTile: this.tile }),
         );
         break;
+      case UnitType.RadarStation:
+        break; // Passive vision source; no recurring execution required.
       case UnitType.CoastalBattery:
         this.mg.addExecution(new CoastalBatteryExecution(this.structure!));
         break;
@@ -189,6 +191,7 @@ export class ConstructionExecution implements Execution {
       case UnitType.Port:
       case UnitType.MissileSilo:
       case UnitType.DefensePost:
+      case UnitType.RadarStation:
       case UnitType.CoastalBattery:
       case UnitType.SAMLauncher:
       case UnitType.City:

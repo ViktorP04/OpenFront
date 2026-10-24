@@ -74,6 +74,11 @@ export function notableLobbySettings(
       label: translateText("game_settings.instant_build"),
       value: enabled,
     });
+  if (c.fogOfWar)
+    items.push({
+      label: translateText("game_settings.fog_of_war"),
+      value: enabled,
+    });
   if (c.randomSpawn)
     items.push({
       label: translateText("game_settings.random_spawn"),

@@ -1248,6 +1248,7 @@ export class ClientGameRunner {
     }
     console.log(`clicked cell ${cell}`);
     const tile = this.gameView.ref(cell.x, cell.y);
+    if (!this.gameView.isTileVisible(tile)) return;
     if (
       this.gameView.isLand(tile) &&
       !this.gameView.hasOwner(tile) &&
@@ -1426,7 +1427,7 @@ export class ClientGameRunner {
 
   private doGroundAttackUnderCursor(): void {
     const tile = this.getTileUnderCursor();
-    if (tile === null) {
+    if (tile === null || !this.gameView.isTileVisible(tile)) {
       return;
     }
 
@@ -1502,6 +1503,7 @@ export class ClientGameRunner {
 
     const myPlayer = this.myPlayer;
 
+    if (!this.gameView.isTileVisible(tile)) return;
     const tileOwner = this.gameView.owner(tile);
     if (!tileOwner.isPlayer()) return;
     if (e.playerID !== undefined && tileOwner.id() !== e.playerID) return;
@@ -1536,6 +1538,7 @@ export class ClientGameRunner {
 
     const myPlayer = this.myPlayer;
 
+    if (!this.gameView.isTileVisible(tile)) return;
     const tileOwner = this.gameView.owner(tile);
     if (!tileOwner.isPlayer()) return;
     if (e.playerID !== undefined && tileOwner.id() !== e.playerID) return;
@@ -1566,6 +1569,7 @@ export class ClientGameRunner {
       this.myPlayer = myPlayer;
     }
 
+    if (!this.gameView.isTileVisible(tile)) return;
     const tileOwner = this.gameView.owner(tile);
     if (!tileOwner.isPlayer()) return;
     if (e.playerID !== undefined && tileOwner.id() !== e.playerID) return;

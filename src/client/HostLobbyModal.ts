@@ -88,6 +88,9 @@ export class HostLobbyModal extends BaseModal {
   @state() private playerLimitValue: number | undefined = undefined;
   @state() private startDelayValue: number | undefined = 3;
   @state() private instantBuild: boolean = false;
+  @state() private fogOfWar: boolean = false;
+  private fogLoadedFor: string | null = null;
+  private fogEdited = false;
   @state() private randomSpawn: boolean = false;
   @state() private compactMap: boolean = false;
   @state() private goldMultiplier: boolean = false;
@@ -161,6 +164,10 @@ export class HostLobbyModal extends BaseModal {
     const lobby = event.lobby;
     if (!this.lobbyId || lobby.gameID !== this.lobbyId) {
       return;
+    }
+    if (this.fogLoadedFor !== this.lobbyId) {
+      this.fogLoadedFor = this.lobbyId;
+      if (!this.fogEdited) this.fogOfWar = lobby.gameConfig?.fogOfWar ?? false;
     }
     // A host returning to an existing lobby (?host) starts with default
     // settings; without this, their next change of any setting would send
@@ -682,6 +689,10 @@ export class HostLobbyModal extends BaseModal {
                     checked: this.instantBuild,
                   },
                   {
+                    labelKey: "game_settings.fog_of_war",
+                    checked: this.fogOfWar,
+                  },
+                  {
                     labelKey: "game_settings.random_spawn",
                     checked: this.randomSpawn,
                   },
@@ -1044,6 +1055,9 @@ export class HostLobbyModal extends BaseModal {
     this.startDelayValue = 3;
     this.instantBuild = false;
     this.randomSpawn = false;
+    this.fogOfWar = false;
+    this.fogLoadedFor = null;
+    this.fogEdited = false;
     this.compactMap = false;
     this.useRandomMap = false;
     this.disabledUnits = [];
@@ -1141,6 +1155,11 @@ export class HostLobbyModal extends BaseModal {
     switch (labelKey) {
       case "game_settings.instant_build":
         this.handleInstantBuildChange(checked);
+        break;
+      case "game_settings.fog_of_war":
+        this.fogOfWar = checked;
+        this.fogEdited = true;
+        this.putGameConfig();
         break;
       case "game_settings.random_spawn":
         this.handleRandomSpawnChange(checked);
@@ -1667,6 +1686,10 @@ export class HostLobbyModal extends BaseModal {
             donateTroops: this.donateTroops,
             instantBuild: this.instantBuild,
             randomSpawn: this.randomSpawn,
+            fogOfWar:
+              this.fogEdited || this.fogLoadedFor === this.lobbyId
+                ? this.fogOfWar
+                : undefined,
             gameMode: this.gameMode,
             disabledUnits: this.disabledUnits,
             spawnImmunityDuration: this.spawnImmunity

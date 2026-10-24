@@ -201,7 +201,8 @@
       "sam_launcher": "Defends against incoming nukes",
       "warship": "Captures trade ships, destroys ships and boats",
       "submarine": "Stealth raider that sinks ships. Revealed when firing or near enemy warships and coastal batteries. Built at a port; use fleet controls to move.",
-      "coastal_battery": "Shoreline gun that fires at hostile ships within 100 tiles. Detects nearby submarines. No land-defense bonus."
+      "coastal_battery": "Shoreline gun that fires at hostile ships within 100 tiles. Detects nearby submarines. No land-defense bonus.",
+      "radar_station": "Reveals terrain ownership and surface units within 150 tiles. Allies share vision. Does not detect submerged submarines. Requires Fog of War."
     },
     "not_enough_money": "Not enough money",
     "upgrade_amount": "x{amount}",
@@ -1026,6 +1027,7 @@
     "options": "Options",
     "overtime": "Overtime after (minutes)",
     "random_spawn": "Random spawn",
+    "fog_of_war": "Fog of War (shared allied vision)",
     "start": "Start Game",
     "starting": "Starting…",
     "starting_gold": "Starting Gold (Millions)",
@@ -2570,6 +2572,7 @@
   "unit_type": {
     "submarine": "Submarine",
     "coastal_battery": "Coastal Battery",
+    "radar_station": "Radar Station",
     "atom_bomb": "Atom Bomb",
     "boat": "Boat",
     "city": "City",

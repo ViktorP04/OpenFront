@@ -21,6 +21,7 @@ const COPIED_KEYS = [
   "donateTroops",
   "instantBuild",
   "randomSpawn",
+  "fogOfWar",
   "gameMode",
   "disabledUnits",
   "playerTeams",

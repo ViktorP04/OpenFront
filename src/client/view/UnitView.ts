@@ -109,6 +109,7 @@ export class UnitView implements UnitLike {
   }
 
   isVisible(): boolean {
+    if (!this.gameView.isTileVisible(this.tile())) return false;
     if (
       this.type() !== UnitType.Submarine ||
       this.targetable() ||

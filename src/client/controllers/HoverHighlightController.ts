@@ -52,7 +52,9 @@ export class HoverHighlightController implements Controller {
     let ownerID = 0;
 
     const ref = this.game.ref(cell.x, cell.y);
-    if (this.game.isLand(ref)) {
+    if (!this.game.isTileVisible(ref)) {
+      ownerID = 0;
+    } else if (this.game.isLand(ref)) {
       ownerID = this.game.tileState(ref) & OWNER_MASK;
     } else if (this.navalHighlightEnabled()) {
       // Avoid square root for performance; 50 tile radius = 2500 tiles²
@@ -64,7 +66,7 @@ export class HoverHighlightController implements Controller {
         UnitType.TradeShip,
         UnitType.TransportShip,
       )) {
-        if (u.type() === UnitType.Submarine && !u.isVisible()) continue;
+        if (!u.isVisible()) continue;
         const distSquared = this.game.euclideanDistSquared(ref, u.tile());
         if (distSquared < closestDistSquared) {
           closestDistSquared = distSquared;

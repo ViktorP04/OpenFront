@@ -39,6 +39,7 @@ const samlauncherIcon = assetUrl("images/SamLauncherIconWhite.svg");
 const shieldIcon = assetUrl("images/ShieldIconWhite.svg");
 
 const submarineIcon = assetUrl("images/SubmarineIcon.svg");
+const radarStationIcon = assetUrl("images/RadarStationIcon.svg");
 const coastalBatteryIcon = assetUrl("images/CoastalBatteryIcon.svg");
 
 export interface BuildItemDisplay {
@@ -56,6 +57,13 @@ export const buildTable: BuildItemDisplay[][] = [
       icon: submarineIcon,
       description: "build_menu.desc.submarine",
       key: "unit_type.submarine",
+      countable: true,
+    },
+    {
+      unitType: UnitType.RadarStation,
+      icon: radarStationIcon,
+      description: "build_menu.desc.radar_station",
+      key: "unit_type.radar_station",
       countable: true,
     },
     {
@@ -520,7 +528,12 @@ export class BuildMenu extends LitElement implements Controller {
 
   private getBuildableUnits(): BuildItemDisplay[][] {
     return buildTable.map((row) =>
-      row.filter((item) => !this.game?.config()?.isUnitDisabled(item.unitType)),
+      row.filter(
+        (item) =>
+          !this.game?.config()?.isUnitDisabled(item.unitType) &&
+          (item.unitType !== UnitType.RadarStation ||
+            this.game?.config().fogOfWar()),
+      ),
     );
   }
 

@@ -39,6 +39,10 @@ void main() {
     discard;
 
   uint raw = texelFetch(uTileTex, tc, 0).r;
+  if ((raw & (1u << FOG_BIT)) != 0u) {
+    fragColor = vec4(0.025, 0.04, 0.065, 0.65);
+    return;
+  }
   uint owner = raw & uint(OWNER_MASK);
   bool fallout = (raw & (1u << FALLOUT_BIT)) != 0u;
 

@@ -265,6 +265,7 @@ describe("submarine visibility", () => {
     let perspective: unknown = viewer;
     const game = {
       ticks: () => 0,
+      isTileVisible: () => true,
       isSpectator: () => spectator,
       myPlayer: () => perspective,
       playerBySmallID: () => owner,

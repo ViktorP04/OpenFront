@@ -166,6 +166,12 @@ export class PlayerPanel extends LitElement implements Controller {
   }
 
   async tick() {
+    if (
+      this.isVisible &&
+      this.tile !== null &&
+      !this.g.isTileVisible(this.tile)
+    )
+      this.hide();
     if (this.isVisible && this.tile) {
       const owner = this.g.owner(this.tile);
       if (owner && owner.isPlayer()) {
@@ -210,6 +216,7 @@ export class PlayerPanel extends LitElement implements Controller {
   }
 
   public show(actions: PlayerActions, tile: TileRef) {
+    if (!this.g.isTileVisible(tile)) return;
     this.actions = actions;
     this.tile = tile;
     this.moderationTarget = null;
