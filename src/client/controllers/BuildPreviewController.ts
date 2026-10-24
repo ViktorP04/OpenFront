@@ -227,6 +227,19 @@ export class BuildPreviewController implements Controller {
       }
     }
 
+    if (
+      this.ghostUnit.buildableUnit.type === UnitType.TransportShip &&
+      tileRef !== undefined &&
+      !this.game.isTileVisible(tileRef)
+    ) {
+      Object.assign(this.ghostUnit.buildableUnit, {
+        canBuild: false,
+        canUpgrade: false,
+      });
+      this.pendingConfirm = null;
+      this.emitGhostPreview(tileRef, false, trajectoryTileRef);
+      return;
+    }
     // Check if targeting an ally (for nuke warning visual)
     let targetingAlly = false;
     const myPlayer = this.game.myPlayer();
@@ -474,7 +487,9 @@ export class BuildPreviewController implements Controller {
         rangeRadius = 150;
         break;
       case UnitType.CoastalBattery:
-        rangeRadius = this.game.config().coastalBatteryRange();
+        rangeRadius = this.game
+          .config()
+          .coastalBatteryRange(this.resolveGhostRangeLevel(u) ?? 1);
         break;
       case UnitType.Submarine:
         rangeRadius = this.game.config().submarineRange();
@@ -569,6 +584,11 @@ export class BuildPreviewController implements Controller {
       if (!this.game.isValidCoord(tile.x, tile.y)) return;
       const unitType = this.ghostUnit.buildableUnit.type;
       const targetTile = this.game.ref(tile.x, tile.y);
+      if (
+        unitType === UnitType.TransportShip &&
+        !this.game.isTileVisible(targetTile)
+      )
+        return;
 
       if (this.shouldBlockRecentAllyNuke(targetTile, unitType)) {
         return;
@@ -688,13 +708,17 @@ export class BuildPreviewController implements Controller {
   private resolveGhostRangeLevel(
     buildableUnit: BuildableUnit,
   ): number | undefined {
-    if (buildableUnit.type !== UnitType.SAMLauncher) return undefined;
+    if (
+      buildableUnit.type !== UnitType.SAMLauncher &&
+      buildableUnit.type !== UnitType.CoastalBattery
+    )
+      return undefined;
     if (buildableUnit.canUpgrade !== false) {
       const existing = this.game.unit(buildableUnit.canUpgrade);
       if (existing) {
-        return existing.level() + 1;
+        return existing.level() + (this.uiState.upgradeMultiplier ?? 1);
       } else {
-        console.warn("Failed to find existing SAMLauncher for upgrade");
+        console.warn("Failed to find existing structure for upgrade");
       }
     }
     return 1;

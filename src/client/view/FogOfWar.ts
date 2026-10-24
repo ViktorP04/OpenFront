@@ -5,14 +5,12 @@ export const RADAR_VISION = 150;
 export { FOG_BIT } from "../render/gl/utils/TileCodec";
 
 export function unitVisionRadius(type: string): number {
+  if (type === UnitType.TradeShip) return 10;
   if (type === UnitType.RadarStation) return RADAR_VISION;
   if (
-    [
-      UnitType.Warship,
-      UnitType.Submarine,
-      UnitType.TransportShip,
-      UnitType.TradeShip,
-    ].includes(type as UnitType)
+    [UnitType.Warship, UnitType.Submarine, UnitType.TransportShip].includes(
+      type as UnitType,
+    )
   )
     return 35;
   // Projectiles do not act as disposable scouts.

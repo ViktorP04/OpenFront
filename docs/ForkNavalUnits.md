@@ -4,10 +4,10 @@ Coastal Battery and Submarine are available to every player, independently of
 account levels. Find them in the build menu or select their icons in the hotbar.
 They can be disabled with the existing disabled-unit lobby settings.
 
-| Unit            | Starting cost | Role                                                                                                                                      |
-| --------------- | ------------: | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Coastal Battery |  200,000 gold | Capturable shoreline gun; 100-tile firing range, 3-second reload, 300 base damage. Detects submarines within 35 tiles.                    |
-| Submarine       |  350,000 gold | 600-health naval raider; 55-tile torpedo range, 6-second reload, 450 base damage. Sinks shipping rather than capturing its trade revenue. |
+| Unit            | Starting cost | Role                                                                                                                                                   |
+| --------------- | ------------: | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Coastal Battery |  200,000 gold | Capturable shoreline gun; 60-tile starting firing range (upgradable toward 140), 3-second reload, 300 base damage. Detects submarines within 35 tiles. |
+| Submarine       |  350,000 gold | 600-health naval raider; 55-tile torpedo range, 6-second reload, 450 base damage. Sinks shipping rather than capturing its trade revenue.              |
 
 Costs increase with construction count: batteries add 200,000 up to 800,000;
 submarines add 350,000 up to 1,400,000. Existing infinite-gold settings apply.
@@ -16,7 +16,16 @@ Projectile damage uses the same deterministic damage roll as warship shells.
 Build batteries on owned land immediately beside water, with normal structure
 spacing. They take eight seconds to complete and give no defense-post land bonus.
 They fire automatically on hostile ships and belong to whoever captures their
-territory. They cannot bombard land buildings.
+territory. They cannot bombard land buildings. Upgrade them through the same
+build/upgrade controls as other structures. Range is `140 - 160 / (level + 1)`:
+60 at level 1, about 87 at level 2, and 100 at level 3, with diminishing gains.
+Damage, reload, and submarine-detection range stay unchanged. Each upgrade uses
+the current battery construction price and increases the construction count.
+
+Visible, completed batteries show SAM-style coverage circles when placing boats,
+ports or batteries, hovering their build buttons, or selecting a fleet to move.
+Circles use the battery's current level and ownership colors; fog-hidden batteries
+are excluded. The battery placement preview shows the new or upgraded range.
 
 Build a submarine by selecting water reachable from one of your completed ports.
 It launches at the nearest connected port and moves to the selected position,
@@ -37,7 +46,9 @@ indices. Bot nations continue using their existing build choices and can fight
 submarines with their normal warships.
 
 Balance values live in `packages/engine-lib/src/configuration/Config.ts`; costs
-live in `packages/engine/src/configuration/EngineConfig.ts`. Icons are SVGs under
+live in `packages/engine/src/configuration/EngineConfig.ts`. The battery range
+curve is shared with the renderer in `packages/engine-lib/src/game/NavalBalance.ts`.
+Icons are SVGs under
 `resources/images`. Regenerate the appended atlas columns and submarine sprite
 with `python scripts/buildForkUnitAssets.py` (requires Pillow). Regeneration is
 idempotent and retains the original atlas columns pixel-for-pixel.

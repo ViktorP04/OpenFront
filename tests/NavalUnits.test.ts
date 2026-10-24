@@ -11,6 +11,7 @@ import {
   CoastalBatteryExecution,
   SubmarineExecution,
 } from "@openfront/engine/execution/NavalUnitsExecution";
+import { UpgradeStructureExecution } from "@openfront/engine/execution/UpgradeStructureExecution";
 import { WarshipExecution } from "@openfront/engine/execution/WarshipExecution";
 import { Game, Player, Unit } from "@openfront/engine/game/Game";
 import { createGame } from "@openfront/engine/game/GameImpl";
@@ -279,4 +280,28 @@ describe("Radar Station", () => {
     expect(b.units(UnitType.RadarStation)).toContain(radar);
     await navalRoundTrip(game, 2);
   });
+});
+
+it("starts batteries with shorter reach and applies upgrades to live combat and snapshots", async () => {
+  const battery = a.buildUnit(UnitType.CoastalBattery, at(7, 20), {});
+  game.addExecution(new CoastalBatteryExecution(battery));
+  const target = b.buildUnit(UnitType.TradeShip, at(87, 20), {
+    targetUnit: tradeDestination,
+  });
+  expect(game.config().coastalBatteryRange(battery.level())).toBe(60);
+  executeTicks(game, 40);
+  expect(target.isActive()).toBe(true);
+  expect(a.canUpgradeUnit(battery)).toBe(true);
+  expect(b.canUpgradeUnit(battery)).toBe(false);
+  battery.setUnderConstruction(true);
+  expect(a.canUpgradeUnit(battery)).toBe(false);
+  battery.setUnderConstruction(false);
+  game.addExecution(new UpgradeStructureExecution(a, battery.id()));
+  executeTicks(game, 2);
+  expect(battery.level()).toBe(2);
+  expect(game.config().coastalBatteryRange(battery.level())).toBeGreaterThan(
+    80,
+  );
+  await navalRoundTrip(game, 50);
+  expect(target.isActive()).toBe(false);
 });

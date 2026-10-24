@@ -11,6 +11,7 @@
 
 import type { MapLayer } from "@openfront/engine-api/game/MapFiles";
 import type { Config } from "@openfront/engine-lib/configuration/Config";
+import { coastalBatteryRange } from "@openfront/engine-lib/game/NavalBalance";
 import { translateText } from "../../Utils";
 import type { SpiralRibbon } from "../frame/SpiralTrails";
 import type {
@@ -102,6 +103,14 @@ const SAM_RADIUS_HIGHLIGHT_TYPES = new Set([
   "Hydrogen Bomb",
 ]);
 
+const BATTERY_RANGE_GHOST_TYPES = new Set([
+  "Coastal Battery",
+  "Transport",
+  "Warship",
+  "Submarine",
+  "Trade Ship",
+  "Port",
+]);
 const GRID_VIEW_KEY = "renderer:grid_view_enabled";
 
 export class GPURenderer {
@@ -136,6 +145,9 @@ export class GPURenderer {
   private fxPass: FxPass;
   private rangeCirclePass: RangeCirclePass;
   private samRadiusPass: SAMRadiusPass;
+  private batteryRadiusPass: SAMRadiusPass;
+  private batteryGhostVisible = false;
+  private batteryHighlightVisible = false;
   private crosshairPass: CrosshairPass;
   private railroadPass: RailroadPass;
   private barPass: BarPass;
@@ -558,6 +570,14 @@ export class GPURenderer {
     // --- SAM radius overlay (dashed green circles during build mode) ---
     this.samRadiusPass = new SAMRadiusPass(gl, mapW, this.settings);
     this.samRadiusPass.setPaletteData(paletteData);
+    this.batteryRadiusPass = new SAMRadiusPass(
+      gl,
+      mapW,
+      this.settings,
+      "Coastal Battery",
+      coastalBatteryRange,
+    );
+    this.batteryRadiusPass.setPaletteData(paletteData);
 
     // --- Crosshair (warship placement) ---
     this.crosshairPass = new CrosshairPass(gl);
@@ -739,6 +759,7 @@ export class GPURenderer {
     );
     // SAM radius pass stores its own copy
     this.samRadiusPass.setPaletteData(this.paletteData);
+    this.batteryRadiusPass.setPaletteData(this.paletteData);
     // Name pass caches per-player colors and bakes them into slot rows
     this.namePass.refreshPlayerColors(this.paletteData);
   }
@@ -910,6 +931,7 @@ export class GPURenderer {
     this.unitPass.setFrameTick(this.frameTick);
     this.unitPass.updateUnits(units, gameTick);
     this.samRadiusPass.setTick(gameTick);
+    this.batteryRadiusPass.setTick(gameTick);
     this.barPass.updateBars(units, this.lastStructures, gameTick);
     this.pointLightPass.updateLights(units);
     this.heatManager.decayHeat();
@@ -934,6 +956,7 @@ export class GPURenderer {
         }
       }
       this.samRadiusPass.setAllies(friendly);
+      this.batteryRadiusPass.setAllies(friendly);
       this.unitPass.setAllies(friendly);
     }
   }
@@ -953,6 +976,7 @@ export class GPURenderer {
     this.structurePass.updateStructures(units);
     this.structureLevelPass.updateStructures(units);
     this.samRadiusPass.updateStructures(units);
+    this.batteryRadiusPass.updateStructures(units);
     this.unitPass.setStructures(units);
     const posts: { x: number; y: number; ownerID: number }[] = [];
     const w = this.mapW;
@@ -1086,6 +1110,9 @@ export class GPURenderer {
           }
         : null,
     );
+    this.batteryGhostVisible =
+      data !== null && BATTERY_RANGE_GHOST_TYPES.has(data.ghostType);
+    this.updateBatteryRangeVisibility();
     this.samGhostVisible =
       data !== null && SAM_RADIUS_GHOST_TYPES.has(data.ghostType);
     this.samRadiusPass.setVisible(
@@ -1127,6 +1154,10 @@ export class GPURenderer {
   setHighlightStructureTypes(unitTypes: string[] | null): void {
     this.structurePass.setHighlightTypes(unitTypes);
     this.structureLevelPass.setHighlightTypes(unitTypes);
+    this.batteryHighlightVisible =
+      unitTypes !== null &&
+      unitTypes.some((t) => BATTERY_RANGE_GHOST_TYPES.has(t));
+    this.updateBatteryRangeVisibility();
     this.samHighlightVisible =
       unitTypes !== null &&
       unitTypes.some((t) => SAM_RADIUS_HIGHLIGHT_TYPES.has(t));
@@ -1139,6 +1170,7 @@ export class GPURenderer {
     if (id === this.localPlayerID) return;
     this.localPlayerID = id;
     this.samRadiusPass.setLocalPlayer(id);
+    this.batteryRadiusPass.setLocalPlayer(id);
     this.structurePass.setLocalPlayer(id);
     this.affiliationPalette.setLocalPlayer(id);
     this.unitPass.setLocalPlayer(id);
@@ -1151,6 +1183,7 @@ export class GPURenderer {
 
   setSAMAllianceClusters(clusters: Map<number, number>): void {
     this.samRadiusPass.setAllianceClusters(clusters);
+    this.batteryRadiusPass.setAllianceClusters(clusters);
   }
 
   setAltView(active: boolean): void {
@@ -1179,12 +1212,21 @@ export class GPURenderer {
   // Selection box (warship selection)
   // ---------------------------------------------------------------------------
 
+  private updateBatteryRangeVisibility(): void {
+    this.batteryRadiusPass.setVisible(
+      this.batteryGhostVisible ||
+        this.batteryHighlightVisible ||
+        this.selectedUnitIds.length > 0,
+    );
+  }
+
   setSelectedUnits(unitIds: readonly number[]): void {
     // Copy in (callers may mutate their array).
     this.selectedUnitIds.length = 0;
     for (let i = 0; i < unitIds.length; i++) {
       this.selectedUnitIds.push(unitIds[i]);
     }
+    this.updateBatteryRangeVisibility();
     if (this.selectedUnitIds.length === 0) {
       this.selectionBoxPass.hide();
     }
@@ -1224,6 +1266,7 @@ export class GPURenderer {
       entries.push({ centerX, centerY, r, g, b });
     }
     this.selectedUnitIds.length = writeIdx;
+    this.updateBatteryRangeVisibility();
 
     this.selectionBoxPass.setSelections(entries);
   }
@@ -1368,6 +1411,7 @@ export class GPURenderer {
     if (pe.unit) this.unitPass.drawGround(cam);
     if (pe.falloutBloom) this.bloomPass.draw(cam, this.frameTick);
     this.samRadiusPass.draw(cam);
+    this.batteryRadiusPass.draw(cam);
     this.rangeCirclePass.draw(cam);
     this.nukeTrajectoryPass.draw(cam);
     this.crosshairPass.draw(cam);
@@ -1507,6 +1551,7 @@ export class GPURenderer {
     this.railroadPass.dispose();
     this.rangeCirclePass.dispose();
     this.samRadiusPass.dispose();
+    this.batteryRadiusPass.dispose();
     this.crosshairPass.dispose();
     this.structurePass.dispose();
     this.structureLevelPass.dispose();

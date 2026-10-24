@@ -1398,7 +1398,7 @@ export class ClientGameRunner {
 
   private doBoatAttackUnderCursor(e: DoBoatAttackEvent): void {
     const tile = this.actionTile(e.tile);
-    if (tile === null) {
+    if (tile === null || !this.gameView.isTileVisible(tile)) {
       return;
     }
 
@@ -1618,7 +1618,7 @@ export class ClientGameRunner {
   }
 
   private sendBoatAttackIntent(tile: TileRef) {
-    if (!this.myPlayer) return;
+    if (!this.myPlayer || !this.gameView.isTileVisible(tile)) return;
 
     this.eventBus.emit(
       new SendBoatAttackIntentEvent(

@@ -21,6 +21,8 @@ import {
   UT_MISSILE_SILO,
   UT_PORT,
   UT_SAM_LAUNCHER,
+  UT_COASTAL_BATTERY,
+  UT_RADAR_STATION,
 } from "../../types";
 import { DynamicInstanceBuffer } from "../DynamicBuffer";
 import type { RenderSettings } from "../RenderSettings";
@@ -50,6 +52,8 @@ const STRUCTURE_ORDER = [
   UT_FACTORY,
   UT_DEFENSE_POST,
   UT_SAM_LAUNCHER,
+  UT_COASTAL_BATTERY,
+  UT_RADAR_STATION,
   UT_MISSILE_SILO,
 ] as const;
 

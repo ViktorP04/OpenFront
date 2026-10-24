@@ -69,7 +69,7 @@ export class CoastalBatteryExecution implements Execution {
     const target = targetFor(
       this.game,
       this.battery,
-      this.game.config().coastalBatteryRange(),
+      this.game.config().coastalBatteryRange(this.battery.level()),
     );
     this.battery.setTargetUnit(target);
     if (

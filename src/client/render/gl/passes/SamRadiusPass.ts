@@ -1,6 +1,7 @@
 /**
  * SAMRadiusPass — renders rotating dashed circles around SAM launchers
  * when the player is in build mode (ghost preview active).
+ * A configurable structure type and range curve also support coastal batteries.
  *
  * Allied SAM ranges are merged via circle union: overlapping circles from
  * the same alliance group show as a single combined shape rather than
@@ -188,6 +189,8 @@ export class SAMRadiusPass {
     gl: WebGL2RenderingContext,
     mapW: number,
     settings: RenderSettings,
+    private readonly unitType: string = UT_SAM_LAUNCHER,
+    private readonly rangeForLevel: (level: number) => number = samRange,
   ) {
     this.gl = gl;
     this.mapW = mapW;
@@ -356,7 +359,12 @@ export class SAMRadiusPass {
     this.dirtyGroups.clear();
 
     for (const u of structures.values()) {
-      if (u.unitType !== UT_SAM_LAUNCHER || !u.isActive) continue;
+      if (
+        u.unitType !== this.unitType ||
+        !u.isActive ||
+        (this.unitType !== UT_SAM_LAUNCHER && u.underConstruction)
+      )
+        continue;
       const isFriendly =
         u.ownerID === this.localPlayerID || this.allies.has(u.ownerID);
       const bg = this.getSAMBaseGroup(u, isFriendly);
@@ -373,7 +381,12 @@ export class SAMRadiusPass {
     this.hasUpgradingSAM = this.dirtyGroups.size > 0;
 
     for (const u of structures.values()) {
-      if (u.unitType !== UT_SAM_LAUNCHER || !u.isActive) continue;
+      if (
+        u.unitType !== this.unitType ||
+        !u.isActive ||
+        (this.unitType !== UT_SAM_LAUNCHER && u.underConstruction)
+      )
+        continue;
       const isFriendly =
         u.ownerID === this.localPlayerID || this.allies.has(u.ownerID);
       const bg = this.getSAMBaseGroup(u, isFriendly);
@@ -418,7 +431,7 @@ export class SAMRadiusPass {
     ) {
       const elapsed = continuousTick - startTick;
       const progress = Math.max(0, Math.min(1, elapsed / duration));
-      const targetRadius = samRange(u.samUpgradeTargetLevel ?? 0);
+      const targetRadius = this.rangeForLevel(u.samUpgradeTargetLevel ?? 0);
       const startRange = u.samUpgradeStartRange ?? 0;
       const currentRadius = startRange + (targetRadius - startRange) * progress;
 
@@ -451,7 +464,7 @@ export class SAMRadiusPass {
       circles.push({
         x,
         y,
-        radius: samRange(u.level),
+        radius: this.rangeForLevel(u.level),
         r: color[0],
         g: color[1],
         b: color[2],
@@ -464,7 +477,7 @@ export class SAMRadiusPass {
         circles.push({
           x,
           y,
-          radius: samRange(u.level),
+          radius: this.rangeForLevel(u.level),
           r: color[0],
           g: color[1],
           b: color[2],

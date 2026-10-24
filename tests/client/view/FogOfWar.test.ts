@@ -249,3 +249,19 @@ it("filters hidden names and local map effects", () => {
     20 * 400 + 100,
   ]);
 });
+
+it("trade ships reveal nearby water without replacing dedicated scouts", () => {
+  const fog = new FogOfWar(100, 60);
+  const owners = new Uint16Array(6000);
+  const pos = 30 * 100 + 30;
+  let vision = fog.update(owners, new Set([1]), [
+    { pos, radius: unitVisionRadius(UnitType.TradeShip) },
+  ]);
+  expect(vision[pos + 10]).toBeGreaterThan(0);
+  expect(vision[pos + 11]).toBe(0);
+  expect(vision[pos + 30]).toBe(0);
+  vision = fog.update(owners, new Set([1]), [
+    { pos, radius: unitVisionRadius(UnitType.Warship) },
+  ]);
+  expect(vision[pos + 30]).toBeGreaterThan(0);
+});

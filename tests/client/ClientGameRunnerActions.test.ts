@@ -74,6 +74,7 @@ import {
 import {
   DoRequestAllianceEvent,
   DoTargetPlayerEvent,
+  DoBoatAttackEvent,
   MouseMoveEvent,
   MouseUpEvent,
 } from "../../src/client/InputHandler";
@@ -105,6 +106,7 @@ function makeRunner(overrides: {
     config: () => ({ isRandomSpawn: () => false, isReplay: () => false }),
     inSpawnPhase: () => overrides.inSpawnPhase ?? false,
     myPlayer: () => null,
+    isTileVisible: () => true,
     isValidCoord: () => true,
     ref: () => TILE,
     isLand: () => true,
@@ -350,4 +352,35 @@ describe("player actions from keybinds and panel buttons", () => {
 
     expect(myPlayer.actions).not.toHaveBeenCalled();
   });
+});
+
+it("does not launch a transport by hotkey or click into fog, including loss of vision while awaiting buildables", async () => {
+  const { runner, eventBus, gameView, myPlayer } = makeRunner({
+    hasOwner: true,
+    actions: {
+      canAttack: false,
+      buildableUnits: [{ type: UnitType.TransportShip, canBuild: 5 }],
+    },
+  });
+  const boats: SendBoatAttackIntentEvent[] = [];
+  eventBus.on(SendBoatAttackIntentEvent, (e) => boats.push(e));
+  gameView.isTileVisible = () => false;
+  eventBus.emit(new MouseUpEvent(CLICK.x, CLICK.y));
+  eventBus.emit(new DoBoatAttackEvent(TILE));
+  await flushPromises();
+  expect(boats).toHaveLength(0);
+  // Let the explicit launch request start while visible, then lose sight
+  // before its worker response. The final send must recheck vision.
+  gameView.isTileVisible = () => true;
+  let resolveBuildables!: (value: unknown) => void;
+  (myPlayer as any).buildables = () =>
+    new Promise((resolve) => {
+      resolveBuildables = resolve;
+    });
+  eventBus.emit(new DoBoatAttackEvent(TILE));
+  gameView.isTileVisible = () => false;
+  resolveBuildables([{ type: UnitType.TransportShip, canBuild: 5 }]);
+  await flushPromises();
+  expect(boats).toHaveLength(0);
+  runner.stop();
 });
