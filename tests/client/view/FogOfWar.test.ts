@@ -265,3 +265,31 @@ it("trade ships reveal nearby water without replacing dedicated scouts", () => {
   ]);
   expect(vision[pos + 30]).toBeGreaterThan(0);
 });
+
+it("extends live shared vision when a radar is upgraded", () => {
+  const game = fogGame();
+  const enemy = makeEmptyGu(2);
+  enemy.updates[GameUpdateType.Unit] = [
+    makeUnitUpdate({
+      id: 12,
+      ownerID: 2,
+      unitType: UnitType.City,
+      pos: 20 * 400 + 220,
+    }),
+  ];
+  game.update(enemy);
+  expect(game.frameData().units.has(12)).toBe(false);
+  const upgrade = makeEmptyGu(3);
+  upgrade.updates[GameUpdateType.Unit] = [
+    makeUnitUpdate({
+      id: 10,
+      ownerID: 1,
+      unitType: UnitType.RadarStation,
+      pos: 20 * 400 + 20,
+      level: 2,
+    }),
+  ];
+  game.update(upgrade);
+  expect(game.frameData().units.has(12)).toBe(true);
+  expect(unitVisionRadius(UnitType.RadarStation, 3)).toBe(225);
+});

@@ -124,3 +124,29 @@ it("previews the range of the upgraded battery, including bulk upgrades", () => 
     }),
   ).toBe(1);
 });
+
+it("previews the upgraded radar coverage for single and bulk upgrades", () => {
+  const config = new Config({} as never, false);
+  const state = { upgradeMultiplier: 1 };
+  const controller = new BuildPreviewController(
+    { config: () => config, unit: () => ({ level: () => 1 }) } as never,
+    new EventBus(),
+    state as never,
+    {} as never,
+    {} as never,
+    {} as never,
+  ) as any;
+  const buildable = { type: UnitType.RadarStation, canUpgrade: 7 };
+  expect(config.radarRange(controller.resolveGhostRangeLevel(buildable))).toBe(
+    200,
+  );
+  state.upgradeMultiplier = 2;
+  expect(config.radarRange(controller.resolveGhostRangeLevel(buildable))).toBe(
+    225,
+  );
+  expect(
+    config.radarRange(
+      controller.resolveGhostRangeLevel({ ...buildable, canUpgrade: false }),
+    ),
+  ).toBe(150);
+});

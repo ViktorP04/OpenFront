@@ -7,7 +7,7 @@ Terrain stays visible. Outside current vision, ownership, units, map names, rail
 - Owned territory reveals itself and extends vision 12 tiles beyond its border (Manhattan distance).
 - Warships, submarines, and transports reveal a circle of radius 35. Trade ships reveal only 10 tiles, so dedicated scouts are needed to explore safely.
 - Completed land structures and trains reveal a circle of radius 20. Projectiles never provide vision.
-- Radar Stations reveal a circle of radius 150. They cost 300,000 gold initially, increasing by 300,000 per station to a maximum of 1,200,000, and take 12 seconds to build. They occupy ordinary owned land, can be captured, and cannot be upgraded. They are available only with Fog of War enabled and can also be disabled through unit settings.
+- Radar Stations start with a vision radius of 150 tiles. Upgrades extend coverage to 200 at level 2, 225 at level 3, and gradually toward 300 tiles. Each upgrade costs the current radar construction price and counts toward subsequent cost increases. They cost 300,000 gold initially, increasing by 300,000 per station to a maximum of 1,200,000, and take 12 seconds to build. They occupy ordinary owned land, can be captured, and use the normal structure upgrade controls. The placement preview shows the resulting coverage, including bulk upgrades. They are available only with Fog of War enabled and can also be disabled through unit settings.
 
 Radar reveals surface activity; it does not defeat submarine stealth. A submarine must be both inside shared vision and detected by the existing warship/coastal-battery rules (or revealed by firing) to appear.
 

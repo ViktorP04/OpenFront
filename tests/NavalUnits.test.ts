@@ -305,3 +305,21 @@ it("starts batteries with shorter reach and applies upgrades to live combat and 
   await navalRoundTrip(game, 50);
   expect(target.isActive()).toBe(false);
 });
+
+it("upgrades completed radar stations and preserves their level through capture and snapshots", async () => {
+  game.config().gameConfig().fogOfWar = true;
+  const radar = a.buildUnit(UnitType.RadarStation, at(4, 20), {});
+  radar.setUnderConstruction(true);
+  expect(a.canUpgradeUnit(radar)).toBe(false);
+  radar.setUnderConstruction(false);
+  expect(a.canUpgradeUnit(radar)).toBe(true);
+  expect(b.canUpgradeUnit(radar)).toBe(false);
+  game.addExecution(new UpgradeStructureExecution(a, radar.id(), 2));
+  executeTicks(game, 2);
+  expect(radar.level()).toBe(3);
+  expect(game.config().radarRange(radar.level())).toBe(225);
+  b.captureUnit(radar);
+  expect(radar.owner()).toBe(b);
+  expect(radar.level()).toBe(3);
+  await navalRoundTrip(game, 3);
+});

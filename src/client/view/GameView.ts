@@ -651,7 +651,10 @@ export class GameView implements GameLike {
         .filter(
           (u) => friendly.has(u.owner().smallID()) && !u.isUnderConstruction(),
         )
-        .map((u) => ({ pos: u.tile(), radius: unitVisionRadius(u.type()) }));
+        .map((u) => ({
+          pos: u.tile(),
+          radius: unitVisionRadius(u.type(), u.level()),
+        }));
       this.fog.update(this._map.tileStateBuffer(), friendly, sources);
       this.visionTick = this.ticks();
     }

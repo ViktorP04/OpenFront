@@ -10,7 +10,7 @@ import { PlayerLike } from "@openfront/engine-api/game/ReadViews";
 import { GameConfig } from "@openfront/engine-api/Schemas";
 import { pow } from "../DetMath";
 import { DoomsdayClockSpeed } from "../game/DoomsdayClock";
-import { coastalBatteryRange } from "../game/NavalBalance";
+import { coastalBatteryRange, radarRange } from "../game/NavalBalance";
 import { assertNever } from "../Util";
 
 export interface NukeMagnitude {
@@ -177,6 +177,10 @@ export class Config {
     return 90;
   }
 
+  radarRange(level = 1): number {
+    return radarRange(level);
+  }
+
   coastalBatteryRange(level = 1): number {
     return coastalBatteryRange(level);
   }
@@ -245,7 +249,10 @@ export class Config {
         info = { maxHealth: 600 };
         break;
       case UnitType.RadarStation:
-        info = { constructionDuration: this.instantBuild() ? 0 : 120 };
+        info = {
+          constructionDuration: this.instantBuild() ? 0 : 120,
+          upgradable: true,
+        };
         break;
       case UnitType.CoastalBattery:
         info = {

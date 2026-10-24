@@ -484,7 +484,9 @@ export class BuildPreviewController implements Controller {
         rangeRadius = this.game.config().trainStationMaxRange();
         break;
       case UnitType.RadarStation:
-        rangeRadius = 150;
+        rangeRadius = this.game
+          .config()
+          .radarRange(this.resolveGhostRangeLevel(u) ?? 1);
         break;
       case UnitType.CoastalBattery:
         rangeRadius = this.game
@@ -710,7 +712,8 @@ export class BuildPreviewController implements Controller {
   ): number | undefined {
     if (
       buildableUnit.type !== UnitType.SAMLauncher &&
-      buildableUnit.type !== UnitType.CoastalBattery
+      buildableUnit.type !== UnitType.CoastalBattery &&
+      buildableUnit.type !== UnitType.RadarStation
     )
       return undefined;
     if (buildableUnit.canUpgrade !== false) {
