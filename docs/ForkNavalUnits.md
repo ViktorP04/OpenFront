@@ -5,8 +5,9 @@ account levels. Find them in the build menu or select their icons in the hotbar.
 They can be disabled with the existing disabled-unit lobby settings.
 
 Custom additions sit at the far right of the bottom bar: Coastal Battery,
-Submarine, then Radar Station (when Fog of War is enabled). Submarine defaults
-to **J** and Radar Station to **H**; both can be rebound in Settings > Hotkeys.
+Submarine, then Radar Station (when Fog of War is enabled). Coastal Battery
+defaults to **O**, Submarine to **J**, and Radar Station to **H**; all three can
+be rebound in Settings > Hotkeys.
 Existing custom bindings take precedence over newly added defaults.
 
 | Unit            | Starting cost | Role                                                                                                                                                   |

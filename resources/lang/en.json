@@ -2654,6 +2654,8 @@
     "build_port_desc": "Build a Port under your cursor.",
     "build_sam_launcher": "Build SAM Launcher",
     "build_sam_launcher_desc": "Build a SAM Launcher under your cursor.",
+    "build_coastal_battery": "Build Coastal Battery",
+    "build_coastal_battery_desc": "Build or upgrade a Coastal Battery under your cursor.",
     "build_submarine": "Build Submarine",
     "build_submarine_desc": "Build a Submarine under your cursor.",
     "build_radar_station": "Build Radar Station",

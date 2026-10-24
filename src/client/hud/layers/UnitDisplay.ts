@@ -225,7 +225,7 @@ export class UnitDisplay extends LitElement implements Controller {
             myPlayer.totalUnitLevels(UnitType.CoastalBattery),
             UnitType.CoastalBattery,
             "coastal_battery",
-            "",
+            this.getHotkey("buildCoastalBattery", "KeyO"),
           )}
           ${this.renderUnitItem(
             submarineIcon,

@@ -531,6 +531,7 @@ export class InputHandler {
       "buildHydrogenBomb",
       "buildWarship",
       "buildMIRV",
+      "buildCoastalBattery",
       "buildSubmarine",
       "buildRadarStation",
     ];
@@ -1508,6 +1509,7 @@ export class InputHandler {
       { key: "buildHydrogenBomb", type: UnitType.HydrogenBomb },
       { key: "buildWarship", type: UnitType.Warship },
       { key: "buildMIRV", type: UnitType.MIRV },
+      { key: "buildCoastalBattery", type: UnitType.CoastalBattery },
       { key: "buildSubmarine", type: UnitType.Submarine },
       { key: "buildRadarStation", type: UnitType.RadarStation },
     ];
