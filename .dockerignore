@@ -18,7 +18,6 @@ helm-charts
 **/*.sqlite
 **/*.sqlite-wal
 **/*.sqlite-shm
-.npmrc
 .editorconfig
 .idea
 coverage*
