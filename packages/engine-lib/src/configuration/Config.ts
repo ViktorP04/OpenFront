@@ -10,7 +10,11 @@ import { PlayerLike } from "@openfront/engine-api/game/ReadViews";
 import { GameConfig } from "@openfront/engine-api/Schemas";
 import { pow } from "../DetMath";
 import { DoomsdayClockSpeed } from "../game/DoomsdayClock";
-import { coastalBatteryRange, radarRange } from "../game/NavalBalance";
+import {
+  COASTAL_BATTERY_HEALTH,
+  coastalBatteryRange,
+  radarRange,
+} from "../game/NavalBalance";
 import { assertNever } from "../Util";
 
 export interface NukeMagnitude {
@@ -256,6 +260,7 @@ export class Config {
         break;
       case UnitType.CoastalBattery:
         info = {
+          maxHealth: COASTAL_BATTERY_HEALTH,
           constructionDuration: this.instantBuild() ? 0 : 80,
           upgradable: true,
         };

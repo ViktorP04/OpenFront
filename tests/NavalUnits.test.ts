@@ -19,6 +19,10 @@ import {
   snapshotGame,
   restoreGame,
 } from "@openfront/engine/snapshot/GameSnapshot";
+import {
+  decodeSnapshotValue,
+  encodeSnapshotValue,
+} from "@openfront/engine/snapshot/SnapshotCodec";
 import { setup } from "./util/Setup";
 import { diffSnapshots } from "./util/Snapshot";
 import { TestConfig } from "./util/TestConfig";
@@ -109,6 +113,89 @@ it("scales naval costs and records separate build statistics", () => {
 });
 
 describe("Coastal Battery", () => {
+  it("can exchange fire with a warship and be destroyed", () => {
+    const battery = a.buildUnit(UnitType.CoastalBattery, at(7, 20), {});
+    expect(battery.health()).toBe(800);
+    const warship = b.buildUnit(UnitType.Warship, at(35, 20), {
+      patrolTile: at(35, 20),
+    });
+    tradeDestination.delete(); // Keep this engagement at sea rather than retreating to repair.
+    game.addExecution(new CoastalBatteryExecution(battery));
+    const execution = new WarshipExecution(warship);
+    vi.spyOn(execution as any, "patrol").mockImplementation(() => {});
+    game.addExecution(execution);
+    executeTicks(game, 50);
+    expect(warship.health()).toBeLessThan(warship.maxHealth());
+    expect(battery.health()).toBeLessThan(800);
+    executeTicks(game, 150);
+    expect(battery.isActive()).toBe(false);
+  });
+
+  it("lets submarines destroy batteries within torpedo range without attacking other structures", async () => {
+    const battery = a.buildUnit(UnitType.CoastalBattery, at(7, 20), {});
+    const city = a.buildUnit(UnitType.City, at(4, 20), {});
+    const sub = subAt(b, 60, 20);
+    game.addExecution(new CoastalBatteryExecution(battery));
+    executeTicks(game, 30);
+    expect(battery.health()).toBeLessThan(800);
+    expect(battery.isActive()).toBe(true);
+    await navalRoundTrip(game, 150);
+    expect(battery.isActive()).toBe(false);
+    expect(city.isActive()).toBe(true);
+    expect(sub.isActive()).toBe(true);
+  });
+
+  it("hides unseen batteries from warships until they open fire through fog", () => {
+    game.config().gameConfig().fogOfWar = true;
+    const battery = a.buildUnit(UnitType.CoastalBattery, at(7, 20), {});
+    const warship = b.buildUnit(UnitType.Warship, at(90, 20), {
+      patrolTile: at(90, 20),
+    });
+    const execution = new WarshipExecution(warship);
+    execution.init(game, game.ticks());
+    expect((execution as any).findTargetUnit()).toBeUndefined();
+    battery.increaseLevel();
+    battery.increaseLevel();
+    const gun = new CoastalBatteryExecution(battery);
+    gun.init(game);
+    gun.tick(game.ticks());
+    expect(battery.targetUnit()).toBe(warship);
+    expect((execution as any).findTargetUnit()).toBe(battery);
+  });
+
+  it("does not fire on friendly batteries", () => {
+    const battery = a.buildUnit(UnitType.CoastalBattery, at(7, 20), {});
+    subAt(a, 40, 20);
+    const warship = a.buildUnit(UnitType.Warship, at(45, 20), {
+      patrolTile: at(45, 20),
+    });
+    game.addExecution(new WarshipExecution(warship));
+    executeTicks(game, 150);
+    expect(battery.health()).toBe(800);
+  });
+
+  it("restores legacy batteries with full health and preserves damage in new saves", () => {
+    const battery = a.buildUnit(UnitType.CoastalBattery, at(7, 20), {});
+    const root = decodeSnapshotValue(snapshotGame(game)) as {
+      units: { v: number; d: { type: UnitType; health: bigint } }[];
+    };
+    const saved = root.units.find(
+      (unit) => unit.d.type === UnitType.CoastalBattery,
+    )!;
+    saved.v = 1;
+    saved.d.health = 1n;
+    const restore = (bytes: Uint8Array) =>
+      restoreGame(bytes, {
+        gameMap: navalMap(),
+        miniGameMap: navalMap(true),
+        config: (gc) => new TestConfig(gc, false),
+      });
+    expect(
+      restore(encodeSnapshotValue(root)).unit(battery.id())!.health(),
+    ).toBe(800);
+    battery.modifyHealth(-799);
+    expect(restore(snapshotGame(game)).unit(battery.id())!.health()).toBe(1);
+  });
   it("requires owned shoreline land, spacing, and the unit to be enabled", () => {
     expect(game.isLand(at(7, 20))).toBe(true);
     expect(game.isWater(at(8, 20))).toBe(true);
@@ -227,6 +314,9 @@ describe("Submarine", () => {
     expect(sub.isTargetable()).toBe(true);
     battery.setUnderConstruction(true);
     executeTicks(game, 2);
+    expect(sub.isTargetable()).toBe(true); // Its return fire also reveals it.
+    battery.delete();
+    executeTicks(game, 55);
     expect(sub.isTargetable()).toBe(false);
   });
   it("can be countered by warships and does not fire on friendly shipping", () => {
@@ -292,10 +382,10 @@ describe("Radar Station", () => {
 it("starts batteries with shorter reach and applies upgrades to live combat and snapshots", async () => {
   const battery = a.buildUnit(UnitType.CoastalBattery, at(7, 20), {});
   game.addExecution(new CoastalBatteryExecution(battery));
-  const target = b.buildUnit(UnitType.TradeShip, at(87, 20), {
+  const target = b.buildUnit(UnitType.TradeShip, at(67, 20), {
     targetUnit: tradeDestination,
   });
-  expect(game.config().coastalBatteryRange(battery.level())).toBe(60);
+  expect(game.config().coastalBatteryRange(battery.level())).toBe(40);
   executeTicks(game, 40);
   expect(target.isActive()).toBe(true);
   expect(a.canUpgradeUnit(battery)).toBe(true);
@@ -307,7 +397,7 @@ it("starts batteries with shorter reach and applies upgrades to live combat and 
   executeTicks(game, 2);
   expect(battery.level()).toBe(2);
   expect(game.config().coastalBatteryRange(battery.level())).toBeGreaterThan(
-    80,
+    60,
   );
   await navalRoundTrip(game, 50);
   expect(target.isActive()).toBe(false);

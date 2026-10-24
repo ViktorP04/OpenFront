@@ -6,6 +6,7 @@ import {
   zTile,
 } from "@openfront/engine-lib/snapshot/SnapshotType";
 import { z } from "zod";
+import { hasTileVision } from "../game/FogOfWar";
 import {
   Execution,
   Game,
@@ -30,6 +31,7 @@ import type {
 import { ShellExecution } from "./ShellExecution";
 
 const SUBMARINE_TARGETS = [
+  UnitType.CoastalBattery,
   UnitType.TransportShip,
   UnitType.Submarine,
   UnitType.Warship,
@@ -57,6 +59,9 @@ function targetFor(
         unit.isActive() &&
         unit.isTargetable() &&
         unit.owner() !== owner &&
+        (unit.type() !== UnitType.CoastalBattery ||
+          hasTileVision(game, owner, unit.tile()) ||
+          unit.targetUnit()?.owner() === owner) &&
         owner.canAttackPlayer(unit.owner(), true),
     )
     .sort(

@@ -10,10 +10,10 @@ defaults to **O**, Submarine to **J**, and Radar Station to **H**; all three can
 be rebound in Settings > Hotkeys.
 Existing custom bindings take precedence over newly added defaults.
 
-| Unit            | Starting cost | Role                                                                                                                                                          |
-| --------------- | ------------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Coastal Battery |  200,000 gold | Capturable shoreline gun; 60-tile starting firing range (upgradable toward 140), 3-second reload, 300 base damage. Detects submarines within 35 tiles.        |
-| Submarine       |  350,000 gold | 600-health naval raider; 70-tile vision, 55-tile torpedo range, 6-second reload, 450 base damage. Attacks military ships and transports; ignores trade ships. |
+| Unit            | Starting cost | Role                                                                                                                                                                   |
+| --------------- | ------------: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Coastal Battery |  200,000 gold | Capturable shoreline gun with 800 health; 40-tile starting firing range (upgradable toward 140), 3-second reload, 300 base damage. Detects submarines within 35 tiles. |
+| Submarine       |  350,000 gold | 600-health naval raider; 70-tile vision, 55-tile torpedo range, 6-second reload, 450 base damage. Attacks military ships and transports; ignores trade ships.          |
 
 Costs increase with construction count: batteries add 200,000 up to 800,000;
 submarines add 350,000 up to 1,400,000. Existing infinite-gold settings apply.
@@ -22,9 +22,12 @@ Projectile damage uses the same deterministic damage roll as warship shells.
 Build batteries on owned land immediately beside water, with normal structure
 spacing. They take eight seconds to complete and give no defense-post land bonus.
 They fire automatically on hostile ships and belong to whoever captures their
-territory. They cannot bombard land buildings. Upgrade them through the same
-build/upgrade controls as other structures. Range is `140 - 160 / (level + 1)`:
-60 at level 1, about 87 at level 2, and 100 at level 3, with diminishing gains.
+territory. Warships and submarines can destroy them with normal naval fire;
+damaged batteries show health bars. In fog, ships target batteries they can see,
+or batteries firing on their own fleet, within their weapon range. Friendly
+batteries are ignored. Batteries cannot bombard other land buildings. Upgrade them through the same
+build/upgrade controls as other structures. Range is `140 - 200 / (level + 1)`:
+40 at level 1, about 73 at level 2, and 90 at level 3, with diminishing gains.
 Damage, reload, and submarine-detection range stay unchanged. Each upgrade uses
 the current battery construction price and increases the construction count.
 

@@ -4,6 +4,7 @@ import { coastalBatteryRange } from "@openfront/engine-lib/game/NavalBalance";
 import { EventBus } from "@openfront/shared/EventBus";
 import { describe, expect, it, vi } from "vitest";
 import { BuildPreviewController } from "../../src/client/controllers/BuildPreviewController";
+import { BarPass } from "../../src/client/render/gl/passes/BarPass";
 import { SAMRadiusPass } from "../../src/client/render/gl/passes/SamRadiusPass";
 import { GPURenderer } from "../../src/client/render/gl/Renderer";
 import type { UnitState } from "../../src/client/render/types";
@@ -28,6 +29,36 @@ function rendererHarness() {
   });
   return r;
 }
+
+it("shows remaining health for damaged batteries", () => {
+  const pass = Object.create(BarPass.prototype) as any;
+  Object.assign(pass, {
+    config: new Config({} as never, false),
+    mapW: 100,
+    maxBars: 10,
+    healthData: new Float32Array(30),
+  });
+  const battery = {
+    id: 1,
+    pos: 120,
+    unitType: UnitType.CoastalBattery,
+    health: 400,
+    isActive: true,
+    underConstruction: false,
+    markedForDeletion: false,
+  } as UnitState;
+  pass.updateBars(
+    new Map(),
+    new Map([
+      [1, battery],
+      [2, { ...battery, id: 2, health: 800 }],
+      [3, { ...battery, id: 3, isActive: false }],
+    ]),
+    1,
+  );
+  expect(pass.healthCount).toBe(1);
+  expect(Array.from(pass.healthData.slice(0, 3))).toEqual([20, 1, 0.5]);
+});
 
 describe("battery coverage overlay", () => {
   it.each([
@@ -94,9 +125,9 @@ describe("battery coverage overlay", () => {
     );
     expect(circles).toHaveLength(3);
     expect(circles.map((c: any) => [c.radius, c.r, c.g, c.b])).toEqual([
-      [60, 0, 1, 0],
-      [100, 1, 1, 0],
-      [60, 1, 0, 0],
+      [40, 0, 1, 0],
+      [90, 1, 1, 0],
+      [40, 1, 0, 0],
     ]);
   });
 });
@@ -116,7 +147,7 @@ it("previews the range of the upgraded battery, including bulk upgrades", () => 
     canUpgrade: 7,
   });
   expect(level).toBe(7);
-  expect(config.coastalBatteryRange(level)).toBe(120);
+  expect(config.coastalBatteryRange(level)).toBe(115);
   expect(
     controller.resolveGhostRangeLevel({
       type: UnitType.CoastalBattery,

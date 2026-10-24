@@ -11,6 +11,7 @@ import {
 } from "@openfront/engine-lib/snapshot/SnapshotType";
 import { findMinimumBy } from "@openfront/engine-lib/Util";
 import { z } from "zod";
+import { hasTileVision } from "../game/FogOfWar";
 import {
   Execution,
   Game,
@@ -137,7 +138,8 @@ export class WarshipExecution implements Execution {
     // Priority 2: Fight enemy warship if in range
     if (
       this.warship.targetUnit()?.type() === UnitType.Warship ||
-      this.warship.targetUnit()?.type() === UnitType.Submarine
+      this.warship.targetUnit()?.type() === UnitType.Submarine ||
+      this.warship.targetUnit()?.type() === UnitType.CoastalBattery
     ) {
       this.shootTarget();
       this.patrol();
@@ -254,6 +256,7 @@ export class WarshipExecution implements Execution {
       UnitType.TransportShip,
       UnitType.Submarine,
       UnitType.Warship,
+      UnitType.CoastalBattery,
     ]);
   }
 
@@ -263,6 +266,7 @@ export class WarshipExecution implements Execution {
         UnitType.TransportShip,
         UnitType.Submarine,
         UnitType.Warship,
+        UnitType.CoastalBattery,
         UnitType.TradeShip,
       ],
       true,
@@ -307,6 +311,9 @@ export class WarshipExecution implements Execution {
         !unit.isTargetable() ||
         unit.owner() === owner ||
         !owner.canAttackPlayer(unit.owner(), true) ||
+        (unit.type() === UnitType.CoastalBattery &&
+          !hasTileVision(mg, owner, unit.tile()) &&
+          unit.targetUnit()?.owner() !== owner) ||
         this.alreadySentShell.has(unit) ||
         (unit.type() === UnitType.Warship &&
           unit.warshipState().state === "docked")
@@ -352,7 +359,9 @@ export class WarshipExecution implements Execution {
       const typePriority =
         type === UnitType.TransportShip
           ? 0
-          : type === UnitType.Warship || type === UnitType.Submarine
+          : type === UnitType.Warship ||
+              type === UnitType.Submarine ||
+              type === UnitType.CoastalBattery
             ? 1
             : 2;
 

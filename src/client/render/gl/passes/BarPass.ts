@@ -164,6 +164,17 @@ export class BarPass {
     // --- Progress bars (structures) ---
     for (const unit of structures.values()) {
       if (!unit.isActive) continue;
+      if (
+        unit.unitType === UnitType.CoastalBattery &&
+        unit.health !== null &&
+        unit.health > 0
+      ) {
+        const maxHealth = this.config.unitInfo(
+          UnitType.CoastalBattery,
+        ).maxHealth!;
+        if (unit.health < maxHealth)
+          this.pushHealth(unit, unit.health / maxHealth);
+      }
       const progress = this.computeStructureProgress(unit, gameTick);
       if (progress !== null) this.pushProgress(unit, progress);
     }

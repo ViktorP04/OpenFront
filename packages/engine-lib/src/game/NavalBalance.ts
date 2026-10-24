@@ -1,6 +1,8 @@
-/** Shared simulation/rendering range curve: 60 at level 1, approaching 140. */
+export const COASTAL_BATTERY_HEALTH = 800;
+
+/** Shared simulation/rendering range curve: 40 at level 1, approaching 140. */
 export function coastalBatteryRange(level = 1): number {
-  return 140 - 160 / (Math.max(1, level) + 1);
+  return 140 - 200 / (Math.max(1, level) + 1);
 }
 
 /** Radar coverage grows from 150 tiles toward 300, with diminishing gains. */

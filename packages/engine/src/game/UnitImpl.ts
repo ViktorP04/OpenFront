@@ -15,6 +15,7 @@ import {
   GameUpdateType,
   UnitUpdate,
 } from "@openfront/engine-api/game/GameUpdates";
+import { COASTAL_BATTERY_HEALTH } from "@openfront/engine-lib/game/NavalBalance";
 import { maxHealthWithVeterancy } from "@openfront/engine-lib/game/Veterancy";
 import {
   snapshotType,
@@ -920,7 +921,23 @@ export class UnitImpl implements Unit {
 
 export const UnitSnapshot = snapshotType({
   name: "Unit",
-  version: 1,
+  version: 2,
+  migrations: {
+    1: (raw) => {
+      const unit = z
+        .object({
+          type: UnitTypeSchema,
+          active: z.boolean(),
+          health: z.bigint(),
+        })
+        .passthrough()
+        .parse(raw);
+      // Older batteries used the one-point placeholder for structures without health.
+      if (unit.type === UnitType.CoastalBattery && unit.active)
+        unit.health = BigInt(COASTAL_BATTERY_HEALTH);
+      return unit;
+    },
+  },
   schema: z.object({
     id: zInt(),
     type: UnitTypeSchema,
