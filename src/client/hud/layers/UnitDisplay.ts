@@ -148,8 +148,8 @@ export class UnitDisplay extends LitElement implements Controller {
     }
 
     return html`
-      <div class="border-t border-white/10 p-0.5 w-full">
-        <div class="grid grid-rows-1 grid-flow-col gap-0.5 w-fit mx-auto">
+      <div class="border-t border-white/10 p-1 w-full">
+        <div class="flex flex-wrap justify-center gap-1 w-full">
           ${this.renderUnitItem(
             cityIcon,
             this._cities,
@@ -277,7 +277,7 @@ export class UnitDisplay extends LitElement implements Controller {
 
     return html`
       <div
-        class="flex flex-col items-center relative"
+        class="flex flex-col items-center relative shrink-0"
         @mouseenter=${() => {
           this._hoveredUnit = unitType;
           this.requestUpdate();
