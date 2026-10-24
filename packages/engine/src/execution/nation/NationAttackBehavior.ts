@@ -21,6 +21,7 @@ import {
   calculateBoundingBoxCenter,
 } from "@openfront/engine-lib/Util";
 import { CHEAPEST_TROOP_RATIO } from "../../configuration/EngineConfig";
+import { hasTileVision } from "../../game/FogOfWar";
 import { Attack, Game, Player, Unit } from "../../game/Game";
 import {
   canBuildTransportShip,
@@ -299,6 +300,7 @@ export class NationAttackBehavior extends AiAttackBehavior {
       if (this.game.isImpassable(randTile)) {
         continue;
       }
+      if (!hasTileVision(this.game, this.player, randTile)) continue;
       const owner = this.game.owner(randTile);
       if (owner === this.player) {
         continue;
@@ -1231,6 +1233,7 @@ export class NationAttackBehavior extends AiAttackBehavior {
     target: Player | TerraNullius,
     landing: TileRef,
   ): boolean {
+    if (!hasTileVision(this.game, this.player, landing)) return false;
     const troops = this.calculateAttackTroops(
       target,
       (targetTroops) => this.player.troops() - targetTroops,

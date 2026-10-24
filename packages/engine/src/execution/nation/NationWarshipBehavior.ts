@@ -15,16 +15,25 @@ import {
 } from "@openfront/engine-lib/snapshot/SnapshotType";
 import { assertNever } from "@openfront/engine-lib/Util";
 import { z } from "zod";
+import { hasTileVision } from "../../game/FogOfWar";
 import { Game, Player, Unit } from "../../game/Game";
 import type {
   SnapshotReader,
   SnapshotWriter,
 } from "../../snapshot/SnapshotContext";
 import { ConstructionExecution } from "../ConstructionExecution";
+import { MoveWarshipExecution } from "../MoveWarshipExecution";
 import {
   EMOJI_WARSHIP_RETALIATION,
   NationEmojiBehavior,
 } from "./NationEmojiBehavior";
+
+const SCOUT_DIRECTIONS = [
+  [-1, 0],
+  [1, 0],
+  [0, -1],
+  [0, 1],
+] as const;
 
 export class NationWarshipBehavior {
   // Track our transport ships we currently own
@@ -79,6 +88,7 @@ export class NationWarshipBehavior {
     if (this.game.config().isUnitDisabled(UnitType.Warship)) {
       return false;
     }
+    if (this.game.config().fogOfWar() && this.scoutUnseenWater()) return true;
     if (!this.random.chance(50)) {
       return false;
     }
@@ -104,6 +114,83 @@ export class NationWarshipBehavior {
       return true;
     }
     return false;
+  }
+
+  /** Explore public terrain, never selecting a scout destination from hidden enemy ownership. */
+  private scoutUnseenWater(): boolean {
+    const ports = this.player
+      .units(UnitType.Port)
+      .filter((p) => !p.isUnderConstruction());
+    if (ports.length === 0) return false;
+    const ships = this.player.units(UnitType.Warship);
+    const idle = ships.filter((ship) => {
+      const state = ship.warshipState();
+      return (
+        state.state === "patrolling" &&
+        !state.isInCombat &&
+        state.patrolTile !== undefined &&
+        this.game.manhattanDist(ship.tile(), state.patrolTile) < 35
+      );
+    });
+    // Keep at most two ships for exploration; never interrupt a voyage, combat, or repair retreat.
+    const scout = idle.length > 0 ? this.random.randElement(idle) : null;
+    if (
+      !scout &&
+      (ships.length >= 2 || this.player.gold() < this.cost(UnitType.Warship))
+    )
+      return false;
+    const anchor = scout?.tile() ?? this.random.randElement(ports).tile();
+    let waterFallback: TileRef | null = null;
+    let target: TileRef | null = null;
+    for (let i = 0; i < 64; i++) {
+      const x = this.game.x(anchor) + this.random.nextInt(-250, 251);
+      const y = this.game.y(anchor) + this.random.nextInt(-250, 251);
+      if (!this.game.isValidCoord(x, y)) continue;
+      const tile = this.game.ref(x, y);
+      if (!this.game.isWater(tile) || this.game.isImpassable(tile)) continue;
+      const component = this.game.getWaterComponent(tile);
+      if (component === null || !this.game.hasWaterComponent(anchor, component))
+        continue;
+      if (hasTileVision(this.game, this.player, tile)) continue;
+      waterFallback ??= tile;
+      // A coastal band is much easier to find than a one-tile shoreline.
+      // Terrain is public even in fog; ownership and enemy units are not consulted.
+      for (let distance = 1; distance <= 25 && target === null; distance++) {
+        for (const [dx, dy] of SCOUT_DIRECTIONS) {
+          const sx = x + dx * distance,
+            sy = y + dy * distance;
+          if (
+            !this.game.isValidCoord(sx, sy) ||
+            !this.game.isLand(this.game.ref(sx, sy))
+          )
+            continue;
+          // Head right up to the public shoreline so arriving within ship
+          // vision actually reveals a landing, rather than just open water.
+          const coast = this.game.ref(sx - dx, sy - dy);
+          if (!this.game.isWater(coast) || this.game.isImpassable(coast))
+            continue;
+          if (!this.game.hasWaterComponent(coast, component)) continue;
+          if (hasTileVision(this.game, this.player, coast)) continue;
+          target = coast;
+          break;
+        }
+      }
+      if (target !== null) break;
+    }
+    target ??= waterFallback;
+    if (target === null) return false;
+    if (scout) {
+      this.game.addExecution(
+        new MoveWarshipExecution(this.player, [scout.id()], target),
+      );
+    } else {
+      if (this.player.canBuild(UnitType.Warship, target) === false)
+        return false;
+      this.game.addExecution(
+        new ConstructionExecution(this.player, UnitType.Warship, target),
+      );
+    }
+    return true;
   }
 
   private warshipSpawnTile(portTile: TileRef, radius: number): TileRef | null {
@@ -201,6 +288,11 @@ export class NationWarshipBehavior {
 
     // Deleting the current entry while iterating a Set is safe.
     for (const transport of this.trackedIncomingTransportShips) {
+      if (
+        transport.isActive() &&
+        !hasTileVision(this.game, this.player, transport.tile())
+      )
+        continue;
       const target = transport.targetTile();
       if (
         !transport.isActive() ||
@@ -266,6 +358,7 @@ export class NationWarshipBehavior {
     reason: "trade" | "transport",
   ): void {
     // Don't retaliate against ourselves (e.g. own nuke destroyed own ship)
+    if (!hasTileVision(this.game, this.player, tile)) return;
     if (enemy === this.player) {
       return;
     }
@@ -304,6 +397,7 @@ export class NationWarshipBehavior {
   // Send a squad at the fleet blocking our boats, all at once or not at all:
   // Hard as many ships as they have, Impossible one more
   clearSeaLane(blocker: Unit): void {
+    if (!hasTileVision(this.game, this.player, blocker.tile())) return;
     if (this.game.config().isUnitDisabled(UnitType.Warship)) return;
     const { difficulty } = this.game.config().gameConfig();
     const target = blocker.tile();
@@ -392,6 +486,7 @@ export class NationWarshipBehavior {
   }
 
   private maybeMoveWarship(tile: TileRef): void {
+    if (!hasTileVision(this.game, this.player, tile)) return;
     // Make sure we are targeting water
     if (this.game.isWater(tile)) {
       const warship = this.player
@@ -576,6 +671,7 @@ export class NationWarshipBehavior {
   }
 
   private buildCounterWarship(target: { player: Player; warship: Unit }): void {
+    if (!hasTileVision(this.game, this.player, target.warship.tile())) return;
     const canBuild = this.player.canBuild(
       UnitType.Warship,
       target.warship.tile(),

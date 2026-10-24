@@ -1,33 +1,10 @@
-import { UnitType } from "@openfront/engine-api/game/GameTypes";
-import { radarRange } from "@openfront/engine-lib/game/NavalBalance";
-
-export const TERRITORY_VISION = 12;
-export const RADAR_VISION = radarRange();
+import { TERRITORY_VISION } from "@openfront/engine-lib/game/FogOfWarRules";
+export {
+  TERRITORY_VISION,
+  RADAR_VISION,
+  unitVisionRadius,
+} from "@openfront/engine-lib/game/FogOfWarRules";
 export { FOG_BIT } from "../render/gl/utils/TileCodec";
-
-export function unitVisionRadius(type: string, level = 1): number {
-  if (type === UnitType.TradeShip) return 10;
-  if (type === UnitType.RadarStation) return radarRange(level);
-  if (
-    [UnitType.Warship, UnitType.Submarine, UnitType.TransportShip].includes(
-      type as UnitType,
-    )
-  )
-    return 35;
-  // Projectiles do not act as disposable scouts.
-  if (
-    [
-      UnitType.Shell,
-      UnitType.SAMMissile,
-      UnitType.AtomBomb,
-      UnitType.HydrogenBomb,
-      UnitType.MIRV,
-      UnitType.MIRVWarhead,
-    ].includes(type as UnitType)
-  )
-    return 0;
-  return 20;
-}
 
 /** Reusable local vision buffers. Terrain never changes; there is no explored-map memory. */
 export class FogOfWar {

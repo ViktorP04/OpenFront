@@ -16,6 +16,7 @@ import {
 } from "@openfront/engine-lib/snapshot/SnapshotType";
 import { assertNever } from "@openfront/engine-lib/Util";
 import { z } from "zod";
+import { hasTileVision } from "../../game/FogOfWar";
 import { Attack, Game, Player, Unit } from "../../game/Game";
 import {
   canBuildTransportShip,
@@ -304,6 +305,7 @@ export abstract class AiAttackBehavior {
 
   // A boat to the free land at tile
   protected sendExpansionBoat(tile: TileRef): boolean {
+    if (!hasTileVision(this.game, this.player, tile)) return false;
     const troops = Math.min(this.player.troops() / 5, this.expansionTroopCap());
     if (troops < 1) return false;
 
@@ -336,7 +338,9 @@ export abstract class AiAttackBehavior {
       return null;
     }
     const ours = this.shoreTiles(this.player);
-    const theirs = this.shoreTiles(target);
+    const theirs = this.shoreTiles(target).filter((tile) =>
+      hasTileVision(this.game, this.player, tile),
+    );
     const closest = closestTwoTiles(this.game, ours, theirs);
     if (closest === null) return null;
     const warships = this.hostileWarships();
@@ -430,6 +434,7 @@ export abstract class AiAttackBehavior {
       .filter(
         (w) =>
           w.owner() !== this.player &&
+          hasTileVision(this.game, this.player, w.tile()) &&
           !w.isUnderConstruction() &&
           w.warshipState().state !== "docked" &&
           w.owner().canAttackPlayer(this.player, true),

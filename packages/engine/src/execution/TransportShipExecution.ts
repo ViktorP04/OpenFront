@@ -15,6 +15,7 @@ import {
   zTile,
 } from "@openfront/engine-lib/snapshot/SnapshotType";
 import { z } from "zod";
+import { hasTileVision } from "../game/FogOfWar";
 import { Execution, Game, Player, Unit } from "../game/Game";
 import { targetTransportTile } from "../game/TransportShipUtils";
 import { WaterPathFinder } from "../pathfinding/PathFinder";
@@ -69,6 +70,11 @@ export class TransportShipExecution implements Execution {
   init(mg: Game, ticks: number) {
     if (!mg.isValidRef(this.ref)) {
       console.warn(`TransportShipExecution: ref ${this.ref} not valid`);
+      this.active = false;
+      return;
+    }
+
+    if (!hasTileVision(mg, this.attacker, this.ref)) {
       this.active = false;
       return;
     }
