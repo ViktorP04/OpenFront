@@ -107,6 +107,8 @@ export const VIEW_DATA_ROUTING: Record<
   packedNukeImpacts: "events",
   tickExecutionDuration: "dropped",
   pendingTurns: "dropped",
+  // Recorded replays expose the full map and do not use player fog masks.
+  shipVisionTrails: "dropped",
 };
 
 export interface NormalizedFrame {

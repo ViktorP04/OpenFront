@@ -21,6 +21,10 @@ import { GameLike, UnitPredicate } from "@openfront/engine-api/game/ReadViews";
 import { ClientID, GameID } from "@openfront/engine-api/Schemas";
 import { Config } from "@openfront/engine-lib/configuration/Config";
 import { unpackMotionPlans } from "@openfront/engine-lib/game/MotionPlans";
+import {
+  ShipVisionTrails,
+  shipVisionRadius,
+} from "@openfront/engine-lib/game/ShipVisionTrails";
 import { TerrainMapData } from "@openfront/engine-lib/game/TerrainMapLoader";
 import { TerraNulliusImpl } from "@openfront/engine-lib/game/TerraNulliusImpl";
 import { UnitGrid } from "@openfront/engine-lib/game/UnitGrid";
@@ -105,6 +109,7 @@ export class GameView implements GameLike {
   private _frame: FrameData;
   private _structuresDirty = false;
   private fog?: FogOfWar;
+  private shipVisionTrails?: ShipVisionTrails;
   private visionTick = -1;
   private visibleFrame?: FrameData;
   private visibleFrameTick = -1;
@@ -455,6 +460,27 @@ export class GameView implements GameLike {
 
     this.motion.advance(gu.tick, this.plannedUnits);
 
+    if (this._config.fogOfWar() && !this.inSpawnPhase()) {
+      this.shipVisionTrails ??= new ShipVisionTrails(this.width());
+      if (gu.shipVisionTrails)
+        this.shipVisionTrails.restore(gu.shipVisionTrails);
+      this.shipVisionTrails.record(
+        gu.tick,
+        this.units(
+          UnitType.TradeShip,
+          UnitType.TransportShip,
+          UnitType.Warship,
+          UnitType.Submarine,
+        )
+          .filter((unit) => unit.isActive() && !unit.isUnderConstruction())
+          .map((unit) => ({
+            owner: unit.owner().smallID(),
+            pos: unit.tile(),
+            radius: shipVisionRadius(unit.type()),
+          })),
+      );
+    }
+
     this.populateFrame(gu);
   }
 
@@ -656,6 +682,9 @@ export class GameView implements GameLike {
           radius: unitVisionRadius(u.type(), u.level()),
         }));
       this.fog.update(this._map.tileStateBuffer(), friendly, sources);
+      this.fog.addSources(
+        this.shipVisionTrails?.sources(this.ticks(), friendly) ?? [],
+      );
       this.visionTick = this.ticks();
     }
     return this.fog.visible;

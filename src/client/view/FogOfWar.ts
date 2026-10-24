@@ -6,7 +6,7 @@ export {
 } from "@openfront/engine-lib/game/FogOfWarRules";
 export { FOG_BIT } from "../render/gl/utils/TileCodec";
 
-/** Reusable local vision buffers. Terrain never changes; there is no explored-map memory. */
+/** Reusable local vision buffers; ship trails are layered over current coverage. */
 export class FogOfWar {
   readonly visible: Uint8Array;
   private readonly queue: Int32Array;
@@ -23,7 +23,7 @@ export class FogOfWar {
     friendly: ReadonlySet<number>,
     sources: Iterable<{ pos: number; radius: number }>,
   ): Uint8Array {
-    const { visible, width, height, queue } = this;
+    const { visible, width, queue } = this;
     visible.fill(0);
     const friendlyLookup = new Uint8Array(4096);
     for (const owner of friendly) friendlyLookup[owner] = 1;
@@ -62,6 +62,12 @@ export class FogOfWar {
       if (tile >= width) visit(tile - width);
       if (tile + width < visible.length) visit(tile + width);
     }
+    this.addSources(sources);
+    return visible;
+  }
+
+  addSources(sources: Iterable<{ pos: number; radius: number }>): void {
+    const { visible, width, height } = this;
     // Circular mobile/structure vision. Rasterize horizontal spans, avoiding
     // square roots per tile and keeping radar overlap inexpensive.
     for (const { pos, radius } of sources) {
@@ -81,6 +87,5 @@ export class FogOfWar {
         );
       }
     }
-    return visible;
   }
 }

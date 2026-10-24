@@ -19,9 +19,7 @@ const LOCAL_RANGE = Math.max(
   ...LOCAL_SOURCES.map((type) => unitVisionRadius(type)),
 );
 
-/** Point query matching the client's shared vision, without allocating a map per AI.
- * No cached knowledge or PRNG state: snapshots and execution ordering stay deterministic.
- */
+/** Point query matching the client's shared vision, without allocating a map per AI. */
 export function hasTileVision(
   game: Game,
   viewer: Player,
@@ -31,6 +29,13 @@ export function hasTileVision(
   if (!game.config().fogOfWar() || game.inSpawnPhase()) return true;
   const friendly = (owner: Player) =>
     owner === viewer || owner.isFriendly(viewer);
+  if (
+    game.shipVisionTrails().hasVision(game.ticks(), tile, (id) => {
+      const owner = game.playerBySmallID(id);
+      return owner.isPlayer() && friendly(owner);
+    })
+  )
+    return true;
   const friendlyTerritory = (ref: TileRef) => {
     if (!game.hasOwner(ref)) return false;
     const owner = game.owner(ref);

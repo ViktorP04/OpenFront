@@ -40,6 +40,10 @@ import {
   packMotionPlans,
 } from "@openfront/engine-lib/game/MotionPlans";
 import {
+  ShipVisionTrails,
+  shipVisionRadius,
+} from "@openfront/engine-lib/game/ShipVisionTrails";
+import {
   assignTeams,
   resolveTeamsList,
 } from "@openfront/engine-lib/game/TeamAssignment";
@@ -122,6 +126,10 @@ export type CellString = string;
 
 export class GameImpl implements Game {
   private _ticks = 0;
+  private _shipVisionTrails?: ShipVisionTrails;
+  shipVisionTrails(): ShipVisionTrails {
+    return (this._shipVisionTrails ??= new ShipVisionTrails(this.width()));
+  }
   private startTick: number | null = null;
 
   private unInitExecs: Execution[] = [];
@@ -646,6 +654,24 @@ export class GameImpl implements Game {
       this.recordTileUpdate(tile);
     }
     this._ticks++;
+    if (this.config().fogOfWar() && !this.inSpawnPhase()) {
+      this.shipVisionTrails().record(
+        this._ticks,
+        [
+          UnitType.TradeShip,
+          UnitType.TransportShip,
+          UnitType.Warship,
+          UnitType.Submarine,
+        ]
+          .flatMap((type) => this.units(type))
+          .filter((unit) => unit.isActive() && !unit.isUnderConstruction())
+          .map((unit) => ({
+            owner: unit.owner().smallID(),
+            pos: unit.tile(),
+            radius: shipVisionRadius(unit.type()),
+          })),
+      );
+    }
     return this.updates;
   }
 
@@ -1505,6 +1531,7 @@ export class GameImpl implements Game {
     const unInitExecs = this.unInitExecs.map((e) => w.exec(e));
     return {
       ticks: this._ticks,
+      shipVisionTrails: this.shipVisionTrails().snapshot(),
       startTick: this.startTick,
       humans: this._humans.map(playerInfoData),
       nations: this._nations.map(nationData),
@@ -1556,6 +1583,7 @@ export class GameImpl implements Game {
    * every player, unit and execution has been restored.
    */
   restoreState(s: GameState, r: SnapshotReader): void {
+    this.shipVisionTrails().restore(s.shipVisionTrails);
     this._ticks = s.ticks;
     this.startTick = s.startTick;
     this.execs = s.execs.map((i) => r.exec(i));
@@ -1694,6 +1722,9 @@ export const GameSnapshot = snapshotType({
   version: 1,
   schema: z.object({
     ticks: zInt(),
+    shipVisionTrails: z
+      .array(z.tuple([zInt(), zInt(), zInt(), zInt()]))
+      .default([]),
     startTick: zInt().nullable(),
     humans: z.array(PlayerInfoSchema),
     nations: z.array(NationSchema),

@@ -10,10 +10,10 @@ defaults to **O**, Submarine to **J**, and Radar Station to **H**; all three can
 be rebound in Settings > Hotkeys.
 Existing custom bindings take precedence over newly added defaults.
 
-| Unit            | Starting cost | Role                                                                                                                                                   |
-| --------------- | ------------: | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Coastal Battery |  200,000 gold | Capturable shoreline gun; 60-tile starting firing range (upgradable toward 140), 3-second reload, 300 base damage. Detects submarines within 35 tiles. |
-| Submarine       |  350,000 gold | 600-health naval raider; 55-tile torpedo range, 6-second reload, 450 base damage. Attacks military ships and transports; ignores trade ships.          |
+| Unit            | Starting cost | Role                                                                                                                                                          |
+| --------------- | ------------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Coastal Battery |  200,000 gold | Capturable shoreline gun; 60-tile starting firing range (upgradable toward 140), 3-second reload, 300 base damage. Detects submarines within 35 tiles.        |
+| Submarine       |  350,000 gold | 600-health naval raider; 70-tile vision, 55-tile torpedo range, 6-second reload, 450 base damage. Attacks military ships and transports; ignores trade ships. |
 
 Costs increase with construction count: batteries add 200,000 up to 800,000;
 submarines add 350,000 up to 1,400,000. Existing infinite-gold settings apply.

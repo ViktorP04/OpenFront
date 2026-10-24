@@ -1,5 +1,6 @@
 import { UnitType } from "@openfront/engine-api/game/GameTypes";
 import { GameUpdateType } from "@openfront/engine-api/game/GameUpdates";
+import { ShipVisionTrails } from "@openfront/engine-lib/game/ShipVisionTrails";
 import { describe, expect, it } from "vitest";
 import {
   FogOfWar,
@@ -47,6 +48,7 @@ describe("fog vision", () => {
   });
   it("gives ships vision but excludes projectiles from scouting", () => {
     expect(unitVisionRadius(UnitType.Warship)).toBe(35);
+    expect(unitVisionRadius(UnitType.Submarine)).toBe(70);
     expect(unitVisionRadius(UnitType.RadarStation)).toBe(150);
     expect(unitVisionRadius(UnitType.Shell)).toBe(0);
     expect(unitVisionRadius(UnitType.HydrogenBomb)).toBe(0);
@@ -169,7 +171,7 @@ it("does not grant vision from an unfinished radar, and keeps the existing off-m
   expect(off.frameData().units.has(12)).toBe(true);
 });
 
-it("updates mobile scouting coverage and hides enemies again after the scout leaves", () => {
+it("keeps departed ship coverage for ten seconds, then hides enemies again", () => {
   const game = fogGame();
   const scout = makeUnitUpdate({
     id: 20,
@@ -184,7 +186,74 @@ it("updates mobile scouting coverage and hides enemies again after the scout lea
   const leave = makeEmptyGu(3);
   leave.updates[GameUpdateType.Unit] = [{ ...scout, pos: 20 * 400 + 200 }];
   game.update(leave);
+  expect(game.frameData().units.has(12)).toBe(true);
+  game.update(makeEmptyGu(101));
+  expect(game.frameData().units.has(12)).toBe(true);
+  game.update(makeEmptyGu(102));
   expect(game.frameData().units.has(12)).toBe(false);
+});
+
+it("records narrow trade trails on every tick even when the renderer skips frames", () => {
+  const game = fogGame();
+  for (let tick = 2; tick <= 12; tick++) {
+    const gu = makeEmptyGu(tick);
+    gu.updates[GameUpdateType.Unit] = [
+      makeUnitUpdate({
+        id: 20,
+        ownerID: 1,
+        unitType: UnitType.TradeShip,
+        pos: 20 * 400 + 200 + tick * 10,
+      }),
+    ];
+    game.update(gu);
+  }
+  expect(game.isTileVisible(20 * 400 + 220)).toBe(true);
+  expect(game.isTileVisible(20 * 400 + 270)).toBe(true);
+  expect(game.isTileVisible(31 * 400 + 270)).toBe(false);
+  game.update(makeEmptyGu(102));
+  expect(game.isTileVisible(20 * 400 + 220)).toBe(true); // neighboring circle is newer
+  game.update(makeEmptyGu(103));
+  expect(game.isTileVisible(20 * 400 + 220)).toBe(false);
+});
+
+it("restores recent trails into a newly attached view", () => {
+  const game = fogGame();
+  const gu = makeEmptyGu(50);
+  gu.shipVisionTrails = [[1, 20 * 400 + 300, 10, 1]];
+  game.update(gu);
+  expect(game.frameData().units.has(12)).toBe(true);
+  game.update(makeEmptyGu(101));
+  expect(game.frameData().units.has(12)).toBe(false);
+});
+
+it("uses the larger submarine vision in the rendered land mask", () => {
+  const game = fogGame();
+  const gu = makeEmptyGu(2);
+  gu.updates[GameUpdateType.Unit] = [
+    makeUnitUpdate({
+      id: 20,
+      ownerID: 1,
+      unitType: UnitType.Submarine,
+      pos: 20 * 400 + 230,
+      targetable: false,
+    }),
+  ];
+  game.update(gu);
+  expect(game.isTileVisible(20 * 400 + 300)).toBe(true);
+  expect(game.isTileVisible(20 * 400 + 301)).toBe(false);
+  expect(game.frameData().units.has(12)).toBe(true);
+});
+
+it("refreshes stationary trails and revokes former allies' historical vision", () => {
+  const trails = new ShipVisionTrails(400);
+  trails.record(1, [{ owner: 2, pos: 100, radius: 10 }]);
+  trails.record(90, [{ owner: 2, pos: 100, radius: 10 }]);
+  expect(trails.snapshot()).toHaveLength(1);
+  expect(trails.hasVision(101, 110, (id) => id === 2)).toBe(true);
+  expect(trails.hasVision(101, 110, (id) => id === 1)).toBe(false);
+  expect(trails.hasVision(190, 110, () => true)).toBe(false);
+  trails.record(190, []);
+  expect(trails.snapshot()).toHaveLength(0);
 });
 
 it("shares actual allied coverage and revokes it when the alliance ends", () => {

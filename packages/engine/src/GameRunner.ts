@@ -153,6 +153,7 @@ export class GameRunner {
   // Name placements are recomputed periodically; a runner that starts
   // mid-game (restored from a snapshot) computes them on its first tick.
   private viewDataStale = true;
+  private shipVisionHistorySent = false;
 
   constructor(
     public game: Game,
@@ -281,6 +282,9 @@ export class GameRunner {
 
     this.callBack({
       tick: this.game.ticks(),
+      ...(!this.shipVisionHistorySent && this.game.config().fogOfWar()
+        ? { shipVisionTrails: this.game.shipVisionTrails().snapshot() }
+        : {}),
       packedTileUpdates,
       ...(packedMotionPlans ? { packedMotionPlans } : {}),
       ...(packedPlayerUpdates ? { packedPlayerUpdates } : {}),
@@ -296,6 +300,7 @@ export class GameRunner {
       pendingTurns: pendingTurns ?? 0,
     });
     this.isExecuting = false;
+    this.shipVisionHistorySent = true;
     return true;
   }
 

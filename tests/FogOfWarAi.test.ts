@@ -200,9 +200,65 @@ it("rejects a blind AI invasion without spending troops, then allows it once a s
   executeTicks(game, 2);
   expect(ai.units(UnitType.TransportShip)).toHaveLength(1);
   scout.delete();
-  expect(hasTileVision(game, ai, landing())).toBe(false);
+  expect(hasTileVision(game, ai, landing())).toBe(true); // recent scout trail
   executeTicks(game, 3);
   expect(ai.units(UnitType.TransportShip)).toHaveLength(1); // an existing voyage may continue
+});
+
+it("preserves ship trails through snapshots and expires them for AI transport rules", () => {
+  const scout = ai.buildUnit(UnitType.Warship, at(115), {
+    patrolTile: at(115),
+  });
+  executeTicks(game, 2);
+  scout.delete();
+  executeTicks(game, 1);
+  const bytes = snapshotGame(game);
+  const restored = restoreGame(bytes, {
+    gameMap: islands(),
+    miniGameMap: islands(true),
+    config: (config) => new TestConfig(config, false),
+  });
+  expect(hasTileVision(restored, restored.player("ai"), landing())).toBe(true);
+  expect(diffSnapshots(bytes, snapshotGame(restored))).toEqual([]);
+  executeTicks(game, 98);
+  executeTicks(restored, 98);
+  expect(hasTileVision(game, ai, landing())).toBe(true);
+  executeTicks(game, 1);
+  executeTicks(restored, 1);
+  expect(hasTileVision(game, ai, landing())).toBe(false);
+  expect(hasTileVision(restored, restored.player("ai"), landing())).toBe(false);
+  expect(diffSnapshots(snapshotGame(game), snapshotGame(restored))).toEqual([]);
+});
+
+it("gives submarines seventy tiles of coastal scouting without revealing hidden subs", () => {
+  const sub = ai.buildUnit(UnitType.Submarine, at(80), { patrolTile: at(80) });
+  expect(hasTileVision(game, ai, landing())).toBe(true);
+  expect(hasTileVision(game, ai, at(150))).toBe(true);
+  expect(hasTileVision(game, ai, at(151))).toBe(false);
+  sub.delete();
+});
+
+it("matches the rendered trail mask after ships move away", () => {
+  const scout = ai.buildUnit(UnitType.Submarine, at(80), {
+    patrolTile: at(80),
+  });
+  executeTicks(game, 2);
+  scout.move(at(210));
+  executeTicks(game, 2);
+  const mask = new FogOfWar(game.width(), game.height());
+  const owners = new Uint16Array(game.width() * game.height());
+  for (let tile = 0; tile < owners.length; tile++)
+    owners[tile] = game.ownerID(tile);
+  const friendly = new Set([ai.smallID()]);
+  const vision = mask.update(owners, friendly, [
+    { pos: scout.tile(), radius: unitVisionRadius(scout.type()) },
+  ]);
+  mask.addSources(game.shipVisionTrails().sources(game.ticks(), friendly));
+  for (let y = 0; y < game.height(); y += 7)
+    for (let x = 0; x < game.width(); x += 7)
+      expect(hasTileVision(game, ai, at(x, y)), `tile ${x},${y}`).toBe(
+        vision[at(x, y)] !== 0,
+      );
 });
 
 it("applies the same launch rule to human players and leaves non-fog games unchanged", () => {

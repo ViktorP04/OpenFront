@@ -42,6 +42,7 @@ import {
 } from "@openfront/engine-api/game/ReadViews";
 import { AllPlayersStats, ClientID } from "@openfront/engine-api/Schemas";
 import { MotionPlanRecord } from "@openfront/engine-lib/game/MotionPlans";
+import { ShipVisionTrails } from "@openfront/engine-lib/game/ShipVisionTrails";
 import type { EngineConfig } from "../configuration/EngineConfig";
 import { AbstractGraph } from "../pathfinding/algorithms/AbstractGraph";
 import { PathFinder } from "../pathfinding/types";
@@ -508,6 +509,7 @@ export interface Player extends PlayerLike {
 }
 
 export interface Game extends GameLike {
+  shipVisionTrails(): ShipVisionTrails;
   // Map & Dimensions
   isOnMap(cell: Cell): boolean;
   width(): number;

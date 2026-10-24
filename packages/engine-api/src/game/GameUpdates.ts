@@ -18,7 +18,12 @@ import {
   WarshipState,
 } from "./GameTypes";
 
+/** Owner small ID, tile, radius, and last-seen simulation tick. */
+export type ShipVisionTrail = [number, number, number, number];
+
 export interface GameUpdateViewData {
+  /** Recent ship vision, sent once when attaching a view (including restored games). */
+  shipVisionTrails?: ShipVisionTrail[];
   tick: number;
   updates: GameUpdates;
   /**
