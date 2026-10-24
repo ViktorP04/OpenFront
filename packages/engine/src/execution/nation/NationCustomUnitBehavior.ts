@@ -48,20 +48,23 @@ export class NationCustomUnitBehavior {
       });
       if (!idle && (units.length >= 2 || !affordable)) return false;
       const anchor = idle?.tile() ?? this.random.randElement(ports).tile();
-      const threats = this.game
-        .nearbyUnits(anchor, 200, [
-          UnitType.TransportShip,
-          UnitType.Warship,
-          UnitType.Submarine,
-        ])
-        .filter(
-          ({ unit }) =>
-            unit.isActive() &&
-            unit.isTargetable() &&
-            unit.owner() !== this.player &&
-            this.player.canAttackPlayer(unit.owner(), true) &&
-            hasTileVision(this.game, this.player, unit.tile()),
-        );
+      const threats =
+        idle?.warshipState().scoutMode !== false
+          ? []
+          : this.game
+              .nearbyUnits(anchor, 200, [
+                UnitType.TransportShip,
+                UnitType.Warship,
+                UnitType.Submarine,
+              ])
+              .filter(
+                ({ unit }) =>
+                  unit.isActive() &&
+                  unit.isTargetable() &&
+                  unit.owner() !== this.player &&
+                  this.player.canAttackPlayer(unit.owner(), true) &&
+                  hasTileVision(this.game, this.player, unit.tile()),
+              );
       for (let i = 0; i < 40; i++) {
         const threat = threats[i];
         const x = this.game.x(anchor) + this.random.nextInt(-150, 151);

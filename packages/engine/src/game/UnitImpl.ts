@@ -106,6 +106,7 @@ export class UnitImpl implements Unit {
     if ("patrolTile" in params) {
       this._warshipState = {
         state: "patrolling",
+        ...(this._type === UnitType.Submarine ? { scoutMode: true } : {}),
         patrolTile: params.patrolTile,
         lastCombatTick: -100,
         veterancy: 0,
@@ -460,11 +461,13 @@ export class UnitImpl implements Unit {
     if (
       merged.state === this._warshipState.state &&
       merged.patrolTile === this._warshipState.patrolTile &&
-      merged.retreatPort === this._warshipState.retreatPort
+      merged.retreatPort === this._warshipState.retreatPort &&
+      merged.scoutMode === this._warshipState.scoutMode
     )
       return;
     this._warshipState = {
       state: merged.state,
+      scoutMode: merged.scoutMode,
       patrolTile: merged.patrolTile,
       retreatPort: merged.retreatPort,
       lastCombatTick: this._warshipState.lastCombatTick,
@@ -825,6 +828,7 @@ export class UnitImpl implements Unit {
       warshipState: this._warshipState
         ? {
             state: this._warshipState.state,
+            scoutMode: this._warshipState.scoutMode,
             patrolTile: this._warshipState.patrolTile,
             retreatPort: this._warshipState.retreatPort,
             isInCombat: this._warshipState.isInCombat,
@@ -887,6 +891,8 @@ export class UnitImpl implements Unit {
       ? { ...s.transportShipState }
       : undefined;
     this._warshipState = s.warshipState ? { ...s.warshipState } : undefined;
+    if (this._type === UnitType.Submarine && this._warshipState)
+      this._warshipState.scoutMode ??= true;
     const nuke = s.nukeState;
     this._nukeState = nuke
       ? {
@@ -921,8 +927,9 @@ export class UnitImpl implements Unit {
 
 export const UnitSnapshot = snapshotType({
   name: "Unit",
-  version: 2,
+  version: 3,
   migrations: {
+    2: (raw) => raw,
     1: (raw) => {
       const unit = z
         .object({
@@ -958,6 +965,7 @@ export const UnitSnapshot = snapshotType({
         patrolTile: zTile().optional(),
         retreatPort: zTile().optional(),
         isInCombat: z.boolean().optional(),
+        scoutMode: z.boolean().optional(),
         lastCombatTick: zInt(),
         veterancy: zInt(),
         veterancyProgress: zInt(),

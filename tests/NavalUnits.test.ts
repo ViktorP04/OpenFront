@@ -11,6 +11,7 @@ import {
   CoastalBatteryExecution,
   SubmarineExecution,
 } from "@openfront/engine/execution/NavalUnitsExecution";
+import { SetSubmarineModeExecution } from "@openfront/engine/execution/SetSubmarineModeExecution";
 import { UpgradeStructureExecution } from "@openfront/engine/execution/UpgradeStructureExecution";
 import { WarshipExecution } from "@openfront/engine/execution/WarshipExecution";
 import { Game, Player, Unit } from "@openfront/engine/game/Game";
@@ -93,6 +94,7 @@ const subAt = (owner: Player, x = 60, y = 20) => {
   const sub = owner.buildUnit(UnitType.Submarine, at(x, y), {
     patrolTile: at(x, y),
   });
+  sub.updateWarshipState({ scoutMode: false });
   game.addExecution(new SubmarineExecution(sub));
   return sub;
 };
@@ -253,6 +255,84 @@ describe("Coastal Battery", () => {
 });
 
 describe("Submarine", () => {
+  it("holds fire by default and can switch between scouting and attacking", async () => {
+    const sub = a.buildUnit(UnitType.Submarine, at(60, 20), {
+      patrolTile: at(60, 20),
+    });
+    const target = b.buildUnit(UnitType.TransportShip, at(67, 20), {
+      troops: 1000,
+    });
+    game.addExecution(new SubmarineExecution(sub));
+    executeTicks(game, 70);
+    expect(sub.warshipState().scoutMode).toBe(true);
+    expect(target.isActive()).toBe(true);
+    expect(sub.isTargetable()).toBe(false);
+    expect(sub.targetUnit()).toBeUndefined();
+    game.addExecution(new SetSubmarineModeExecution(a, [sub.id()], false));
+    executeTicks(game, 2);
+    expect(sub.warshipState().scoutMode).toBe(false);
+    expect(sub.isTargetable()).toBe(true);
+    game.addExecution(new SetSubmarineModeExecution(a, [sub.id()], true));
+    executeTicks(game, 2);
+    expect(sub.targetUnit()).toBeUndefined();
+    expect(sub.isTargetable()).toBe(true); // Switching modes does not erase firing reveal.
+    await navalRoundTrip(game, 60);
+    expect(target.isActive()).toBe(false); // Shells already fired still land.
+    expect(sub.warshipState().scoutMode).toBe(true);
+    expect(sub.isTargetable()).toBe(false);
+  });
+
+  it("only changes the selected owner's submarines and preserves pending mode commands in snapshots", async () => {
+    const own = subAt(a);
+    const other = subAt(b, 140, 20);
+    const warship = a.buildUnit(UnitType.Warship, at(100, 20), {
+      patrolTile: at(100, 20),
+    });
+    game.addExecution(
+      new SetSubmarineModeExecution(
+        a,
+        [own.id(), other.id(), warship.id(), 99999],
+        true,
+      ),
+    );
+    await navalRoundTrip(game, 2);
+    expect(own.warshipState().scoutMode).toBe(true);
+    expect(other.warshipState().scoutMode).toBe(false);
+    expect(warship.warshipState().scoutMode).toBeUndefined();
+  });
+
+  it("requires warships to approach within fifteen tiles to detect a scouting submarine", () => {
+    const sub = a.buildUnit(UnitType.Submarine, at(60, 20), {
+      patrolTile: at(60, 20),
+    });
+    game.addExecution(new SubmarineExecution(sub));
+    const detector = b.buildUnit(UnitType.Warship, at(76, 20), {
+      patrolTile: at(76, 20),
+    });
+    executeTicks(game, 2);
+    expect(sub.isTargetable()).toBe(false);
+    detector.move(at(75, 20));
+    executeTicks(game, 2);
+    expect(sub.isTargetable()).toBe(true);
+    detector.move(at(76, 20));
+    executeTicks(game, 2);
+    expect(sub.isTargetable()).toBe(false);
+    expect(detector.health()).toBe(detector.maxHealth());
+  });
+
+  it("keeps coastal battery detection at thirty-five tiles and excludes unfinished detectors", () => {
+    const sub = a.buildUnit(UnitType.Submarine, at(42, 20), {
+      patrolTile: at(42, 20),
+    });
+    const battery = b.buildUnit(UnitType.CoastalBattery, at(7, 20), {});
+    game.addExecution(new SubmarineExecution(sub));
+    executeTicks(game, 2);
+    expect(sub.isTargetable()).toBe(true);
+    battery.setUnderConstruction(true);
+    executeTicks(game, 2);
+    expect(sub.isTargetable()).toBe(false);
+    expect(sub.targetUnit()).toBeUndefined();
+  });
   it("builds only from a completed port and supports fleet move commands", () => {
     expect(a.canBuild(UnitType.Submarine, at(55, 20))).toBe(false);
     const port = a.buildUnit(UnitType.Port, at(7, 20), {});

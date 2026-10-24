@@ -17,6 +17,8 @@ export type Tick = number;
 export type Gold = bigint;
 
 export type WarshipState = {
+  /** Submarines hold fire unless explicitly switched to attack mode. */
+  scoutMode?: boolean;
   state: "patrolling" | "retreating" | "docked";
   patrolTile?: TileRef;
   retreatPort?: TileRef;

@@ -204,6 +204,9 @@ export class Config {
     return 450;
   }
   submarineDetectionRange(): number {
+    return 15;
+  }
+  coastalBatterySubmarineDetectionRange(): number {
     return 35;
   }
   submarineRevealTicks(): number {

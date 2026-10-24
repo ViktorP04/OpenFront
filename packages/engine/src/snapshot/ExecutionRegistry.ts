@@ -35,6 +35,7 @@ import { RecomputeRailClusterExecutionSnapshot } from "../execution/RecomputeRai
 import { RetreatExecutionSnapshot } from "../execution/RetreatExecution";
 import { SAMLauncherExecutionSnapshot } from "../execution/SAMLauncherExecution";
 import { SAMMissileExecutionSnapshot } from "../execution/SAMMissileExecution";
+import { SetSubmarineModeExecutionSnapshot } from "../execution/SetSubmarineModeExecution";
 import { ShellExecutionSnapshot } from "../execution/ShellExecution";
 import { SpawnExecutionSnapshot } from "../execution/SpawnExecution";
 import { SpawnTimerExecutionSnapshot } from "../execution/SpawnTimerExecution";
@@ -78,6 +79,7 @@ export const EXECUTION_SNAPSHOT_TYPES = [
   MirvExecutionSnapshot,
   MissileSiloExecutionSnapshot,
   MoveWarshipExecutionSnapshot,
+  SetSubmarineModeExecutionSnapshot,
   NationExecutionSnapshot,
   NoOpExecutionSnapshot,
   NukeExecutionSnapshot,

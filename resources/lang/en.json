@@ -1,4 +1,12 @@
 {
+  "submarine_mode": {
+    "label": "Submarine mode",
+    "scout": "Scout: hold fire",
+    "attack": "Attack: weapons free",
+    "mixed": "Mixed modes",
+    "scout_hint": "Holding fire to stay hidden. Click to enable attacks for selected submarines.",
+    "attack_hint": "Weapons enabled. Click to switch selected submarines to scout mode."
+  },
   "account_modal": {
     "cancel_subscription": "Cancel",
     "cancel_subscription_confirm": "Cancel your subscription? You may lose access immediately.",
@@ -200,7 +208,7 @@
       "port": "Sends trade ships to generate gold",
       "sam_launcher": "Defends against incoming nukes",
       "warship": "Captures trade ships, destroys ships and boats",
-      "submarine": "Stealth scout with 70-tile vision. Attacks military ships and transports, ignoring trade ships. Revealed when firing or near enemy warships and coastal batteries. Built at a port; use fleet controls to move.",
+      "submarine": "Stealth scout with 70-tile vision. Attacks military ships and transports, ignoring trade ships. Starts in Scout mode and holds fire; select it to toggle Attack mode. Warships detect it within 15 tiles; coastal batteries within 35. Firing reveals it for 5 seconds. Built at a port; use fleet controls to move.",
       "coastal_battery": "Shoreline gun with 800 health and 40-tile starting range. Warships and submarines can destroy it. Upgrade to extend its reach toward 140 tiles. Detects nearby submarines. No land-defense bonus.",
       "radar_station": "Reveals terrain ownership and surface units within 150 tiles. Upgrade for wider coverage: 200 at level 2, 225 at level 3, approaching 300. Allies share vision. Does not detect submerged submarines. Requires Fog of War."
     },

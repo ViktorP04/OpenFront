@@ -1,5 +1,10 @@
 import { TileRef } from "@openfront/engine-api/game/GameMap";
-import { GameMode, GameType, Gold } from "@openfront/engine-api/game/GameTypes";
+import {
+  GameMode,
+  GameType,
+  Gold,
+  UnitType,
+} from "@openfront/engine-api/game/GameTypes";
 import { GameUpdateType } from "@openfront/engine-api/game/GameUpdates";
 import { ClientID } from "@openfront/engine-api/Schemas";
 import { Config } from "@openfront/engine-lib/configuration/Config";
@@ -10,7 +15,8 @@ import { LitElement, html } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import { keyed } from "lit/directives/keyed.js";
 import { Controller } from "../../Controller";
-import { AttackRatioEvent } from "../../InputHandler";
+import { AttackRatioEvent, UnitSelectionEvent } from "../../InputHandler";
+import { SetSubmarineModeIntentEvent } from "../../Transport";
 import { UIState } from "../../UIState";
 import { USER_SETTINGS_CHANGED_EVENT, UserSettings } from "../../UserSettings";
 import { getGamesPlayed, translateText } from "../../Utils";
@@ -26,6 +32,7 @@ export class ControlPanel extends LitElement implements Controller {
   public clientID: ClientID;
   public eventBus: EventBus;
   public uiState: UIState;
+  private selectedSubmarineIds: number[] = [];
 
   @state()
   private attackRatio: number = 0.2;
@@ -87,6 +94,19 @@ export class ControlPanel extends LitElement implements Controller {
   }
 
   init() {
+    this.selectedSubmarineIds = [];
+    this.eventBus.on(UnitSelectionEvent, (event) => {
+      this.selectedSubmarineIds = event.isSelected
+        ? (event.unit ? [event.unit] : event.units)
+            .filter(
+              (unit) =>
+                unit.type() === UnitType.Submarine &&
+                unit.owner() === this.game.myPlayer(),
+            )
+            .map((unit) => unit.id())
+        : [];
+      this.requestUpdate();
+    });
     this.attackRatio = new UserSettings().attackRatio();
     this.uiState.attackRatio = this.attackRatio;
     this.eventBus.on(TutorialHighlightEvent, (e) => {
@@ -687,6 +707,40 @@ export class ControlPanel extends LitElement implements Controller {
     `;
   }
 
+  private renderSubmarineMode() {
+    const subs = this.selectedSubmarineIds
+      .map((id) => this.game?.unit(id))
+      .filter(
+        (unit) => unit?.isActive() && unit.owner() === this.game.myPlayer(),
+      );
+    if (subs.length === 0) return null;
+    const allScouting = subs.every(
+      (sub) => sub!.warshipState().scoutMode !== false,
+    );
+    const allAttacking = subs.every(
+      (sub) => sub!.warshipState().scoutMode === false,
+    );
+    return html`<div
+      class="flex flex-wrap items-center justify-center gap-2 border-t border-white/10 pt-1 mt-1 text-xs"
+    >
+      <span>${translateText("submarine_mode.label")}</span>
+      <button
+        type="button"
+        class="rounded border border-slate-500 px-2 py-1 text-white hover:bg-slate-600"
+        title=${translateText(allScouting ? "submarine_mode.scout_hint" : "submarine_mode.attack_hint")}
+        @click=${() =>
+          this.eventBus.emit(
+            new SetSubmarineModeIntentEvent(
+              subs.map((sub) => sub!.id()),
+              !allScouting,
+            ),
+          )}
+      >
+        ${translateText(allScouting ? "submarine_mode.scout" : allAttacking ? "submarine_mode.attack" : "submarine_mode.mixed")}
+      </button>
+    </div>`;
+  }
+
   render() {
     return html`
       <style>
@@ -712,6 +766,7 @@ export class ControlPanel extends LitElement implements Controller {
       >
         <div class="lg:hidden">${this.renderMobile()}</div>
         <div class="hidden lg:block">${this.renderDesktop()}</div>
+        ${this.renderSubmarineMode()}
       </div>
     `;
   }

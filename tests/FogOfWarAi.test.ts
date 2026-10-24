@@ -174,6 +174,7 @@ it("keeps a gold reserve instead of spending the last savings on custom units", 
 it("sends an idle submarine toward a visible military target and preserves its voyage", () => {
   ai.buildUnit(UnitType.Port, at(24), {});
   const sub = ai.buildUnit(UnitType.Submarine, at(45), { patrolTile: at(45) });
+  sub.updateWarshipState({ scoutMode: false });
   enemy.buildUnit(UnitType.TransportShip, at(65), { troops: 1000 });
   const custom = new NationCustomUnitBehavior(new PseudoRandom(42), game, ai);
   for (let i = 0; i < 500 && sub.warshipState().patrolTile !== at(65); i++) {

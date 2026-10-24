@@ -173,13 +173,21 @@ export class SubmarineExecution implements Execution {
     const detected = this.game
       .nearbyUnits(
         this.sub.tile(),
-        this.game.config().submarineDetectionRange(),
+        Math.max(
+          this.game.config().submarineDetectionRange(),
+          this.game.config().coastalBatterySubmarineDetectionRange(),
+        ),
         [UnitType.Warship, UnitType.CoastalBattery],
       )
       .some(
         ({ unit }) =>
           unit.isActive() &&
           !unit.isUnderConstruction() &&
+          this.game.euclideanDistSquared(this.sub!.tile(), unit.tile()) <=
+            (unit.type() === UnitType.CoastalBattery
+              ? this.game.config().coastalBatterySubmarineDetectionRange()
+              : this.game.config().submarineDetectionRange()) **
+              2 &&
           unit.owner() !== owner &&
           owner.canAttackPlayer(unit.owner(), true),
       );
@@ -193,12 +201,15 @@ export class SubmarineExecution implements Execution {
     this.updateVisibility(tick);
     for (const unit of this.sentTo)
       if (!unit.isActive()) this.sentTo.delete(unit);
-    const target = targetFor(
-      this.game,
-      this.sub,
-      this.game.config().submarineRange(),
-      SUBMARINE_TARGETS,
-    );
+    const target =
+      this.sub.warshipState().scoutMode !== false
+        ? undefined
+        : targetFor(
+            this.game,
+            this.sub,
+            this.game.config().submarineRange(),
+            SUBMARINE_TARGETS,
+          );
     this.sub.setTargetUnit(target);
     if (
       target &&

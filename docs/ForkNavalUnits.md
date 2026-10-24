@@ -42,9 +42,16 @@ where it holds its ambush station. Use the same click, touch, box-selection, and
 select-all fleet controls used for warships to move it again. It cannot capture
 land, has no automatic repair retreat, and does not gain warship veterancy.
 
+Submarines start in **Scout mode** and hold fire, even when attacked. Select one
+or a group and use the **Submarine mode** button in the bottom HUD to enable
+**Attack mode** or return to scouting. Mixed selections switch together. Switching
+back to scouting does not cancel shots already fired or erase the five-second
+firing reveal. Mode choices are saved and synchronized through normal intents.
+
 A submarine is hidden from enemy rendering, health bars and hover UI while
 submerged. Firing exposes it for five seconds. Enemy warships and completed
-coastal batteries detect it within 35 tiles; warships can shoot revealed subs.
+coastal batteries detect it within 35 tiles, while warships must approach within
+15 tiles. Warships can shoot revealed subs.
 Owners, allies, and spectators can see submerged submarines. As with the rest of
 OpenFront's deterministic simulation, stealth is a gameplay presentation/targeting
 rule, not server-side secrecy from a modified client.
@@ -55,7 +62,8 @@ indices. Established AI nations occasionally supplement their normal build choic
 with custom units, keeping at least twice the purchase cost in gold before buying.
 They build up to two batteries and two radar stations (radar only with fog),
 and upgrade their range up to level 3. They keep up to two submarines, sending
-idle subs toward visible military ships or exploring reachable water. Hidden
+scouting subs to explore reachable water. Subs already in attack mode can head
+toward visible military ships. Hidden
 enemy units and trade ships are not used to choose submarine destinations.
 
 Balance values live in `packages/engine-lib/src/configuration/Config.ts`; costs
