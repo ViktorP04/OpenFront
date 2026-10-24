@@ -29,6 +29,12 @@ import type {
 } from "../snapshot/SnapshotContext";
 import { ShellExecution } from "./ShellExecution";
 
+const SUBMARINE_TARGETS = [
+  UnitType.TransportShip,
+  UnitType.Submarine,
+  UnitType.Warship,
+];
+
 const SHIP_TARGETS = [
   UnitType.TransportShip,
   UnitType.TradeShip,
@@ -37,10 +43,15 @@ const SHIP_TARGETS = [
 ];
 
 /** Stable target ordering and diplomacy rules shared by both custom naval units. */
-function targetFor(game: Game, source: Unit, range: number): Unit | undefined {
+function targetFor(
+  game: Game,
+  source: Unit,
+  range: number,
+  targetTypes: UnitType[] = SHIP_TARGETS,
+): Unit | undefined {
   const owner = source.owner();
   return game
-    .nearbyUnits(source.tile(), range, SHIP_TARGETS)
+    .nearbyUnits(source.tile(), range, targetTypes)
     .filter(
       ({ unit }) =>
         unit.isActive() &&
@@ -125,7 +136,7 @@ export const CoastalBatteryExecutionSnapshot = execSnapshotType({
   cls: () => CoastalBatteryExecution,
 });
 
-/** A fragile raider that sinks shipping rather than capturing its trade revenue. */
+/** A stealth raider that attacks military ships and transports, ignoring trade ships. */
 export class SubmarineExecution implements Execution {
   private game: Game;
   private sub: Unit | undefined;
@@ -181,6 +192,7 @@ export class SubmarineExecution implements Execution {
       this.game,
       this.sub,
       this.game.config().submarineRange(),
+      SUBMARINE_TARGETS,
     );
     this.sub.setTargetUnit(target);
     if (

@@ -187,17 +187,24 @@ describe("Submarine", () => {
     expect(sub.tile()).not.toBe(oldTile);
     expect(game.isWater(sub.tile())).toBe(true);
   });
-  it("submerges, reveals while firing, sinks trade rather than stealing it, then hides again", () => {
+  it("ignores enemy trade ships, attacks transports, and hides again after firing", () => {
     const sub = subAt(a);
     executeTicks(game, 2);
     expect(sub.isTargetable()).toBe(false);
-    const trade = b.buildUnit(UnitType.TradeShip, at(67, 20), {
+    const trade = b.buildUnit(UnitType.TradeShip, at(62, 20), {
       targetUnit: tradeDestination,
+    });
+    executeTicks(game, 70);
+    expect(sub.isTargetable()).toBe(false);
+    expect(trade.isActive()).toBe(true);
+    const transport = b.buildUnit(UnitType.TransportShip, at(67, 20), {
+      troops: 1000,
     });
     executeTicks(game, 2);
     expect(sub.isTargetable()).toBe(true);
     executeTicks(game, 12);
-    expect(trade.isActive()).toBe(false);
+    expect(transport.isActive()).toBe(false);
+    expect(trade.isActive()).toBe(true);
     expect(trade.owner()).toBe(b);
     executeTicks(game, 55);
     expect(sub.isTargetable()).toBe(false);
@@ -237,8 +244,8 @@ describe("Submarine", () => {
   });
   it("preserves movement, stealth, reload timers and projectiles through snapshots", async () => {
     const sub = subAt(a);
-    b.buildUnit(UnitType.TradeShip, at(75, 20), {
-      targetUnit: tradeDestination,
+    b.buildUnit(UnitType.TransportShip, at(75, 20), {
+      troops: 1000,
     });
     game.addExecution(
       new CoastalBatteryExecution(
