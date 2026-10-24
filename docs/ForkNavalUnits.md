@@ -4,6 +4,11 @@ Coastal Battery and Submarine are available to every player, independently of
 account levels. Find them in the build menu or select their icons in the hotbar.
 They can be disabled with the existing disabled-unit lobby settings.
 
+Custom additions sit at the far right of the bottom bar: Coastal Battery,
+Submarine, then Radar Station (when Fog of War is enabled). Submarine defaults
+to **J** and Radar Station to **H**; both can be rebound in Settings > Hotkeys.
+Existing custom bindings take precedence over newly added defaults.
+
 | Unit            | Starting cost | Role                                                                                                                                                   |
 | --------------- | ------------: | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Coastal Battery |  200,000 gold | Capturable shoreline gun; 60-tile starting firing range (upgradable toward 140), 3-second reload, 300 base damage. Detects submarines within 35 tiles. |

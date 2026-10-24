@@ -531,6 +531,8 @@ export class InputHandler {
       "buildHydrogenBomb",
       "buildWarship",
       "buildMIRV",
+      "buildSubmarine",
+      "buildRadarStation",
     ];
     buildKeybinds = buildKeybinds.map((i: string): string => {
       return this.keybinds[i];
@@ -573,7 +575,11 @@ export class InputHandler {
         (e: KeyboardEvent) => {
           const matchedBuild = this.resolveBuildKeybind(e.code, e.shiftKey);
 
-          if (matchedBuild !== null) {
+          if (
+            matchedBuild !== null &&
+            (matchedBuild !== UnitType.RadarStation ||
+              this.gameView.config().fogOfWar())
+          ) {
             this.setGhostStructure(matchedBuild);
           }
         },
@@ -1502,6 +1508,8 @@ export class InputHandler {
       { key: "buildHydrogenBomb", type: UnitType.HydrogenBomb },
       { key: "buildWarship", type: UnitType.Warship },
       { key: "buildMIRV", type: UnitType.MIRV },
+      { key: "buildSubmarine", type: UnitType.Submarine },
+      { key: "buildRadarStation", type: UnitType.RadarStation },
     ];
     for (const { key, type } of buildKeybinds) {
       if (this.keybindMatchesEvent({ code, shiftKey }, this.keybinds[key]))

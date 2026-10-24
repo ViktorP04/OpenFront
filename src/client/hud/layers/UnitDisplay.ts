@@ -192,9 +192,6 @@ export class UnitDisplay extends LitElement implements Controller {
             "sam_launcher",
             this.getHotkey("buildSamLauncher", "Digit6"),
           )}
-          ${this.renderUnitItem(submarineIcon, myPlayer.totalUnitLevels(UnitType.Submarine), UnitType.Submarine, "submarine", "")}
-          ${this.game.config().fogOfWar() ? this.renderUnitItem(radarStationIcon, myPlayer.totalUnitLevels(UnitType.RadarStation), UnitType.RadarStation, "radar_station", "") : ""}
-          ${this.renderUnitItem(coastalBatteryIcon, myPlayer.totalUnitLevels(UnitType.CoastalBattery), UnitType.CoastalBattery, "coastal_battery", "")}
           ${this.renderUnitItem(
             warshipIcon,
             this._warships,
@@ -223,6 +220,31 @@ export class UnitDisplay extends LitElement implements Controller {
             "mirv",
             this.getHotkey("buildMIRV", "Digit0"),
           )}
+          ${this.renderUnitItem(
+            coastalBatteryIcon,
+            myPlayer.totalUnitLevels(UnitType.CoastalBattery),
+            UnitType.CoastalBattery,
+            "coastal_battery",
+            "",
+          )}
+          ${this.renderUnitItem(
+            submarineIcon,
+            myPlayer.totalUnitLevels(UnitType.Submarine),
+            UnitType.Submarine,
+            "submarine",
+            this.getHotkey("buildSubmarine", "KeyJ"),
+          )}
+          ${
+            this.game.config().fogOfWar()
+              ? this.renderUnitItem(
+                  radarStationIcon,
+                  myPlayer.totalUnitLevels(UnitType.RadarStation),
+                  UnitType.RadarStation,
+                  "radar_station",
+                  this.getHotkey("buildRadarStation", "KeyH"),
+                )
+              : ""
+          }
         </div>
       </div>
     `;
