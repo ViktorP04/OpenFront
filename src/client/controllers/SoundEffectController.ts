@@ -157,6 +157,7 @@ export class SoundEffectController implements Controller {
       case UnitType.MIRV:
         this.emit("mirv-launch");
         break;
+      case UnitType.Submarine:
       case UnitType.Warship:
         if (unit.owner() === myPlayer) this.emit("build-warship");
         break;
@@ -166,6 +167,7 @@ export class SoundEffectController implements Controller {
       case UnitType.Port:
         if (unit.owner() === myPlayer) this.emit("build-port");
         break;
+      case UnitType.CoastalBattery:
       case UnitType.DefensePost:
         if (unit.owner() === myPlayer) this.emit("build-defense-post");
         break;

@@ -13,7 +13,7 @@
  *   Ground/sea (boats, trains) → rendered below structures
  *   Missiles (nukes, shells, SAM, MIRV warheads) → rendered above structures
  *
- * Atlas layout (12 columns × 13px cells, pre-built by generate-sprite-atlases.mjs):
+ * Atlas layout (13 columns × 13px cells, pre-built by generate-sprite-atlases.mjs):
  *   Col 0: Transport (5×5)
  *   Col 1: Trade Ship (5×5)
  *   Col 2: Warship (11×11)
@@ -26,6 +26,7 @@
  *   Col 9: Train Engine (5×5)
  *   Col 10: Train Carriage (5×5)
  *   Col 11: Train Carriage Loaded (5×5)
+ *   Col 12: Submarine (11×11)
  *
  * Data flow:
  *   FrameSnapshot.units → filter by typeToAtlasIdx → instance VBO → GPU
@@ -48,6 +49,7 @@ import {
   UT_TRAIN,
   UT_TRANSPORT,
   UT_WARSHIP,
+  UT_SUBMARINE,
 } from "../../types";
 import { DynamicInstanceBuffer } from "../DynamicBuffer";
 import type { RenderSettings } from "../RenderSettings";
@@ -85,6 +87,7 @@ const UNIT_ORDER = [
   "TrainEngine",
   "TrainCarriage",
   "TrainCarriageLoaded",
+  UT_SUBMARINE,
 ] as const;
 
 const ATLAS_COLS = UNIT_ORDER.length;

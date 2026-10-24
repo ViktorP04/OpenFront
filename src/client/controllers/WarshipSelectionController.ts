@@ -143,7 +143,7 @@ export class WarshipSelectionController implements Controller {
     const myPlayer = this.game.myPlayer();
     if (!myPlayer) return [];
     return this.game
-      .units(UnitType.Warship)
+      .units(UnitType.Warship, UnitType.Submarine)
       .filter(
         (unit) =>
           unit.isActive() &&
@@ -257,15 +257,17 @@ export class WarshipSelectionController implements Controller {
     const myPlayer = this.game.myPlayer();
     if (!myPlayer) return;
 
-    const selected = this.game.units(UnitType.Warship).filter((unit) => {
-      if (!unit.isActive() || unit.owner() !== myPlayer) return false;
-      const screen = this.transformHandler.worldToScreenCoordinates(
-        new Cell(this.game.x(unit.tile()), this.game.y(unit.tile())),
-      );
-      return (
-        screen.x >= x1 && screen.x <= x2 && screen.y >= y1 && screen.y <= y2
-      );
-    });
+    const selected = this.game
+      .units(UnitType.Warship, UnitType.Submarine)
+      .filter((unit) => {
+        if (!unit.isActive() || unit.owner() !== myPlayer) return false;
+        const screen = this.transformHandler.worldToScreenCoordinates(
+          new Cell(this.game.x(unit.tile()), this.game.y(unit.tile())),
+        );
+        return (
+          screen.x >= x1 && screen.x <= x2 && screen.y >= y1 && screen.y <= y2
+        );
+      });
 
     // Clear single selection if we got a box selection
     if (selected.length > 0 && this.selectedUnit) {
@@ -278,7 +280,7 @@ export class WarshipSelectionController implements Controller {
     const myPlayer = this.game.myPlayer();
     if (!myPlayer) return [];
     return this.game
-      .units(UnitType.Warship)
+      .units(UnitType.Warship, UnitType.Submarine)
       .filter((u) => u.isActive() && u.owner() === myPlayer);
   }
 

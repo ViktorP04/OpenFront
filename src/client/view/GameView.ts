@@ -629,7 +629,13 @@ export class GameView implements GameLike {
 
   /** Public accessor: the renderer reads this and uploads to the GPU. */
   frameData(): FrameData {
-    return this._frame;
+    const hidden = this.units(UnitType.Submarine).filter(
+      (unit) => !unit.isVisible(),
+    );
+    if (hidden.length === 0) return this._frame;
+    const units = new Map(this._frame.units);
+    for (const unit of hidden) units.delete(unit.id());
+    return { ...this._frame, units };
   }
 
   /**

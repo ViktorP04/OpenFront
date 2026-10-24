@@ -1,3 +1,7 @@
+import {
+  CoastalBatteryExecutionSnapshot,
+  SubmarineExecutionSnapshot,
+} from "../execution/NavalUnitsExecution";
 // Every entry is `<ClassName>Snapshot`, exported next to its class.
 import { AllianceExtensionExecutionSnapshot } from "../execution/alliance/AllianceExtensionExecution";
 import { AllianceRejectExecutionSnapshot } from "../execution/alliance/AllianceRejectExecution";
@@ -97,4 +101,6 @@ export const EXECUTION_SNAPSHOT_TYPES = [
   UpgradeStructureExecutionSnapshot,
   WarshipExecutionSnapshot,
   WinCheckExecutionSnapshot,
+  CoastalBatteryExecutionSnapshot,
+  SubmarineExecutionSnapshot,
 ] as unknown as readonly ExecutionSnapshotType<unknown>[];

@@ -38,6 +38,9 @@ const portIcon = assetUrl("images/PortIcon.svg");
 const samlauncherIcon = assetUrl("images/SamLauncherIconWhite.svg");
 const shieldIcon = assetUrl("images/ShieldIconWhite.svg");
 
+const submarineIcon = assetUrl("images/SubmarineIcon.svg");
+const coastalBatteryIcon = assetUrl("images/CoastalBatteryIcon.svg");
+
 export interface BuildItemDisplay {
   unitType: PlayerBuildableUnitType;
   icon: string;
@@ -48,6 +51,20 @@ export interface BuildItemDisplay {
 
 export const buildTable: BuildItemDisplay[][] = [
   [
+    {
+      unitType: UnitType.Submarine,
+      icon: submarineIcon,
+      description: "build_menu.desc.submarine",
+      key: "unit_type.submarine",
+      countable: true,
+    },
+    {
+      unitType: UnitType.CoastalBattery,
+      icon: coastalBatteryIcon,
+      description: "build_menu.desc.coastal_battery",
+      key: "unit_type.coastal_battery",
+      countable: true,
+    },
     {
       unitType: UnitType.AtomBomb,
       icon: atomBombIcon,

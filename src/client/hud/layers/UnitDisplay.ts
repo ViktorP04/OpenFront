@@ -28,6 +28,8 @@ import {
   portIcon,
   samLauncherIcon,
   warshipIcon,
+  submarineIcon,
+  coastalBatteryIcon,
 } from "../HotbarIcons";
 import { TutorialHighlight, TutorialHighlightEvent } from "../Tutorial";
 
@@ -103,6 +105,7 @@ export class UnitDisplay extends LitElement implements Controller {
           this.cost(item) <= (player?.gold() ?? 0n) &&
           (player?.units(UnitType.MissileSilo).length ?? 0) > 0
         );
+      case UnitType.Submarine:
       case UnitType.Warship:
         return (
           this.cost(item) <= (player?.gold() ?? 0n) &&
@@ -188,6 +191,8 @@ export class UnitDisplay extends LitElement implements Controller {
             "sam_launcher",
             this.getHotkey("buildSamLauncher", "Digit6"),
           )}
+          ${this.renderUnitItem(submarineIcon, myPlayer.totalUnitLevels(UnitType.Submarine), UnitType.Submarine, "submarine", "")}
+          ${this.renderUnitItem(coastalBatteryIcon, myPlayer.totalUnitLevels(UnitType.CoastalBattery), UnitType.CoastalBattery, "coastal_battery", "")}
           ${this.renderUnitItem(
             warshipIcon,
             this._warships,
@@ -317,6 +322,7 @@ export class UnitDisplay extends LitElement implements Controller {
                   ]),
                 );
                 break;
+              case UnitType.Submarine:
               case UnitType.Warship:
                 this.eventBus?.emit(new ToggleStructureEvent([UnitType.Port]));
                 break;

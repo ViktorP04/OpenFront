@@ -59,6 +59,9 @@ export interface UnitParamsMap {
     targetTile?: TileRef;
   };
 
+  [UnitType.Submarine]: { patrolTile: TileRef };
+  [UnitType.CoastalBattery]: Record<string, never>;
+
   [UnitType.Warship]: {
     patrolTile: TileRef;
   };

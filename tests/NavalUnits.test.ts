@@ -1,0 +1,253 @@
+import {
+  PlayerInfo,
+  PlayerType,
+  UnitType,
+} from "@openfront/engine-api/game/GameTypes";
+import { GameMapImpl } from "@openfront/engine-lib/game/GameMapImpl";
+import { EngineConfig } from "@openfront/engine/configuration/EngineConfig";
+import { ConstructionExecution } from "@openfront/engine/execution/ConstructionExecution";
+import { MoveWarshipExecution } from "@openfront/engine/execution/MoveWarshipExecution";
+import {
+  CoastalBatteryExecution,
+  SubmarineExecution,
+} from "@openfront/engine/execution/NavalUnitsExecution";
+import { WarshipExecution } from "@openfront/engine/execution/WarshipExecution";
+import { Game, Player, Unit } from "@openfront/engine/game/Game";
+import { createGame } from "@openfront/engine/game/GameImpl";
+import {
+  snapshotGame,
+  restoreGame,
+} from "@openfront/engine/snapshot/GameSnapshot";
+import { setup } from "./util/Setup";
+import { diffSnapshots } from "./util/Snapshot";
+import { TestConfig } from "./util/TestConfig";
+import { executeTicks } from "./util/utils";
+
+function navalMap(mini = false) {
+  const width = mini ? 40 : 160,
+    height = mini ? 25 : 100,
+    coast = mini ? 2 : 8;
+  const terrain = new Uint8Array(width * height);
+  for (let y = 0; y < height; y++)
+    for (let x = 0; x < width; x++)
+      terrain[y * width + x] =
+        (x < coast ? 128 : 32) | (x === coast - 1 || x === coast ? 64 : 0);
+  return new GameMapImpl(width, height, terrain, coast * height);
+}
+async function navalRoundTrip(game: Game, ticks: number) {
+  const bytes = snapshotGame(game);
+  const restored = restoreGame(bytes, {
+    gameMap: navalMap(),
+    miniGameMap: navalMap(true),
+    config: (gc) => new TestConfig(gc, false),
+  });
+  expect(diffSnapshots(bytes, snapshotGame(restored))).toEqual([]);
+  for (let i = 0; i < ticks; i++) {
+    game.executeNextTick();
+    restored.executeNextTick();
+    expect(diffSnapshots(snapshotGame(game), snapshotGame(restored))).toEqual(
+      [],
+    );
+  }
+}
+
+let game: Game;
+let a: Player;
+let b: Player;
+let tradeDestination: Unit;
+beforeEach(async () => {
+  const humans = [
+    new PlayerInfo("CaptainA", PlayerType.Human, "naval001", "a"),
+    new PlayerInfo("CaptainB", PlayerType.Human, "naval002", "b"),
+  ];
+  const template = await setup(
+    "ocean_and_land",
+    { infiniteGold: true },
+    humans,
+  );
+  game = createGame(
+    humans,
+    [],
+    navalMap(),
+    navalMap(true),
+    new TestConfig(template.config().gameConfig(), false),
+  );
+  game.endSpawnPhase();
+  a = game.player("a");
+  b = game.player("b");
+  for (let x = 0; x <= 7; x++)
+    for (let y = 8; y < 40; y++)
+      if (game.isLand(game.ref(x, y))) a.conquer(game.ref(x, y));
+  for (let x = 0; x <= 7; x++)
+    for (let y = 70; y < 95; y++)
+      if (game.isLand(game.ref(x, y))) b.conquer(game.ref(x, y));
+  tradeDestination = b.buildUnit(UnitType.Port, game.ref(7, 80), {});
+});
+const at = (x: number, y: number) => game.ref(x, y);
+const subAt = (owner: Player, x = 60, y = 20) => {
+  const sub = owner.buildUnit(UnitType.Submarine, at(x, y), {
+    patrolTile: at(x, y),
+  });
+  game.addExecution(new SubmarineExecution(sub));
+  return sub;
+};
+
+it("scales naval costs and records separate build statistics", () => {
+  const config = new EngineConfig(
+    { ...game.config().gameConfig(), infiniteGold: false },
+    false,
+  );
+  expect(config.unitInfo(UnitType.Submarine).cost(game, a)).toBe(350000n);
+  expect(config.unitInfo(UnitType.CoastalBattery).cost(game, a)).toBe(200000n);
+  a.buildUnit(UnitType.Submarine, at(60, 20), { patrolTile: at(60, 20) });
+  a.buildUnit(UnitType.CoastalBattery, at(7, 20), {});
+  expect(config.unitInfo(UnitType.Submarine).cost(game, a)).toBe(700000n);
+  expect(config.unitInfo(UnitType.CoastalBattery).cost(game, a)).toBe(400000n);
+  expect(game.stats().stats()[a.clientID()!]?.units?.sub?.[0]).toBe(1n);
+  expect(game.stats().stats()[a.clientID()!]?.units?.coast?.[0]).toBe(1n);
+});
+
+describe("Coastal Battery", () => {
+  it("requires owned shoreline land, spacing, and the unit to be enabled", () => {
+    expect(game.isLand(at(7, 20))).toBe(true);
+    expect(game.isWater(at(8, 20))).toBe(true);
+    const shore = a.canBuild(UnitType.CoastalBattery, at(7, 20));
+    expect(shore).not.toBe(false);
+    if (shore === false) throw new Error("No battery spawn");
+    expect(game.neighbors(shore).some((tile) => game.isWater(tile))).toBe(true);
+    expect(a.canBuild(UnitType.CoastalBattery, at(60, 20))).toBe(false);
+    expect(a.canBuild(UnitType.CoastalBattery, at(7, 80))).toBe(false);
+    a.buildUnit(UnitType.CoastalBattery, shore, {});
+    expect(a.canBuild(UnitType.CoastalBattery, shore)).toBe(false);
+    game.config().gameConfig().disabledUnits = [UnitType.CoastalBattery];
+    expect(a.canBuild(UnitType.CoastalBattery, at(7, 38))).toBe(false);
+  });
+  it("finishes construction before firing and destroys hostile shipping", () => {
+    game.addExecution(
+      new ConstructionExecution(a, UnitType.CoastalBattery, at(7, 20)),
+    );
+    executeTicks(game, 2);
+    const battery = a.units(UnitType.CoastalBattery)[0];
+    expect(battery.isUnderConstruction()).toBe(true);
+    const ship = b.buildUnit(UnitType.TradeShip, at(20, 20), {
+      targetUnit: tradeDestination,
+    });
+    executeTicks(game, 50);
+    expect(ship.isActive()).toBe(true);
+    executeTicks(game, 55);
+    expect(battery.isUnderConstruction()).toBe(false);
+    expect(ship.isActive()).toBe(false);
+  });
+  it("ignores friendly ships and targets for its new owner after capture", () => {
+    const battery = a.buildUnit(UnitType.CoastalBattery, at(7, 20), {});
+    game.addExecution(new CoastalBatteryExecution(battery));
+    const friendly = a.buildUnit(UnitType.TradeShip, at(20, 20), {
+      targetUnit: tradeDestination,
+    });
+    executeTicks(game, 20);
+    expect(friendly.isActive()).toBe(true);
+    b.captureUnit(battery);
+    executeTicks(game, 20);
+    expect(friendly.isActive()).toBe(false);
+    expect(battery.owner()).toBe(b);
+  });
+  it("does not shoot land structures or targets outside its range", () => {
+    const battery = a.buildUnit(UnitType.CoastalBattery, at(7, 20), {});
+    game.addExecution(new CoastalBatteryExecution(battery));
+    const city = b.buildUnit(UnitType.City, at(3, 80), {});
+    const ship = b.buildUnit(UnitType.TradeShip, at(130, 20), {
+      targetUnit: tradeDestination,
+    });
+    executeTicks(game, 60);
+    expect(city.isActive()).toBe(true);
+    expect(ship.isActive()).toBe(true);
+  });
+});
+
+describe("Submarine", () => {
+  it("builds only from a completed port and supports fleet move commands", () => {
+    expect(a.canBuild(UnitType.Submarine, at(55, 20))).toBe(false);
+    const port = a.buildUnit(UnitType.Port, at(7, 20), {});
+    port.setUnderConstruction(true);
+    expect(a.canBuild(UnitType.Submarine, at(55, 20))).toBe(false);
+    port.setUnderConstruction(false);
+    expect(a.canBuild(UnitType.Submarine, at(55, 20))).toBe(port.tile());
+    game.addExecution(
+      new ConstructionExecution(a, UnitType.Submarine, at(55, 20)),
+    );
+    executeTicks(game, 3);
+    const sub = a.units(UnitType.Submarine)[0];
+    expect(sub).toBeDefined();
+    game.addExecution(new MoveWarshipExecution(a, [sub.id()], at(70, 20)));
+    executeTicks(game, 3);
+    expect(sub.warshipState().patrolTile).toBe(at(70, 20));
+    const oldTile = sub.tile();
+    executeTicks(game, 15);
+    expect(sub.tile()).not.toBe(oldTile);
+    expect(game.isWater(sub.tile())).toBe(true);
+  });
+  it("submerges, reveals while firing, sinks trade rather than stealing it, then hides again", () => {
+    const sub = subAt(a);
+    executeTicks(game, 2);
+    expect(sub.isTargetable()).toBe(false);
+    const trade = b.buildUnit(UnitType.TradeShip, at(67, 20), {
+      targetUnit: tradeDestination,
+    });
+    executeTicks(game, 2);
+    expect(sub.isTargetable()).toBe(true);
+    executeTicks(game, 12);
+    expect(trade.isActive()).toBe(false);
+    expect(trade.owner()).toBe(b);
+    executeTicks(game, 55);
+    expect(sub.isTargetable()).toBe(false);
+    expect(sub.health()).toBe(600);
+  });
+  it("is detected at close range by enemy warships and coastal batteries", () => {
+    const sub = subAt(a, 25, 20);
+    executeTicks(game, 2);
+    expect(sub.isTargetable()).toBe(false);
+    const detector = b.buildUnit(UnitType.Warship, at(30, 20), {
+      patrolTile: at(30, 20),
+    });
+    executeTicks(game, 2);
+    expect(sub.isTargetable()).toBe(true);
+    detector.delete();
+    executeTicks(game, 70);
+    expect(sub.isTargetable()).toBe(false);
+    const battery = b.buildUnit(UnitType.CoastalBattery, at(7, 20), {});
+    executeTicks(game, 2);
+    expect(sub.isTargetable()).toBe(true);
+    battery.setUnderConstruction(true);
+    executeTicks(game, 2);
+    expect(sub.isTargetable()).toBe(false);
+  });
+  it("can be countered by warships and does not fire on friendly shipping", () => {
+    const sub = subAt(a);
+    const friendly = a.buildUnit(UnitType.TradeShip, at(62, 20), {
+      targetUnit: tradeDestination,
+    });
+    const warship = b.buildUnit(UnitType.Warship, at(65, 20), {
+      patrolTile: at(65, 20),
+    });
+    game.addExecution(new WarshipExecution(warship));
+    executeTicks(game, 140);
+    expect(sub.isActive()).toBe(false);
+    expect(friendly.owner()).toBe(a);
+  });
+  it("preserves movement, stealth, reload timers and projectiles through snapshots", async () => {
+    const sub = subAt(a);
+    b.buildUnit(UnitType.TradeShip, at(75, 20), {
+      targetUnit: tradeDestination,
+    });
+    game.addExecution(
+      new CoastalBatteryExecution(
+        a.buildUnit(UnitType.CoastalBattery, at(7, 20), {}),
+      ),
+    );
+    await navalRoundTrip(game, 8);
+    executeTicks(game, 3);
+    game.addExecution(new MoveWarshipExecution(a, [sub.id()], at(90, 20)));
+    executeTicks(game, 2);
+    await navalRoundTrip(game, 85);
+  });
+});

@@ -172,6 +172,31 @@ export class Config {
     return 90;
   }
 
+  coastalBatteryRange(): number {
+    return 100;
+  }
+  coastalBatteryReloadTicks(): number {
+    return 30;
+  }
+  coastalBatteryDamage(): number {
+    return 300;
+  }
+  submarineRange(): number {
+    return 55;
+  }
+  submarineReloadTicks(): number {
+    return 60;
+  }
+  submarineDamage(): number {
+    return 450;
+  }
+  submarineDetectionRange(): number {
+    return 35;
+  }
+  submarineRevealTicks(): number {
+    return 50;
+  }
+
   defensePostRange(): number {
     return 30;
   }
@@ -211,6 +236,12 @@ export class Config {
 
     let info: UnitInfo;
     switch (type) {
+      case UnitType.Submarine:
+        info = { maxHealth: 600 };
+        break;
+      case UnitType.CoastalBattery:
+        info = { constructionDuration: this.instantBuild() ? 0 : 80 };
+        break;
       case UnitType.Warship:
         info = { maxHealth: 1000 };
         break;

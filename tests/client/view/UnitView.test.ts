@@ -11,7 +11,7 @@ import {
   UnitType,
   WarshipState,
 } from "@openfront/engine-api/game/GameTypes";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { UnitView } from "../../../src/client/view/UnitView";
 import { makeGameView, makeUnitUpdate, stubConfig } from "../../util/viewStubs";
 
@@ -254,5 +254,37 @@ describe("UnitView accessors", () => {
       expect(r).toBeGreaterThanOrEqual(0);
       expect(r).toBeLessThanOrEqual(1);
     });
+  });
+});
+
+describe("submarine visibility", () => {
+  it("hides submerged enemy units while retaining own, friendly and spectator visibility", () => {
+    const viewer = {};
+    const owner = { isFriendly: vi.fn(() => false) };
+    let spectator = false;
+    let perspective: unknown = viewer;
+    const game = {
+      ticks: () => 0,
+      isSpectator: () => spectator,
+      myPlayer: () => perspective,
+      playerBySmallID: () => owner,
+    } as unknown as import("../../../src/client/view/GameView").GameView;
+    const update = makeUnitUpdate({
+      unitType: UnitType.Submarine,
+      targetable: false,
+    });
+    const sub = new UnitView(game, update);
+    expect(sub.isVisible()).toBe(false);
+    sub.update({ ...update, targetable: true });
+    expect(sub.isVisible()).toBe(true);
+    sub.update(update);
+    owner.isFriendly.mockReturnValue(true);
+    expect(sub.isVisible()).toBe(true);
+    owner.isFriendly.mockReturnValue(false);
+    perspective = owner;
+    expect(sub.isVisible()).toBe(true);
+    perspective = viewer;
+    spectator = true;
+    expect(sub.isVisible()).toBe(true);
   });
 });

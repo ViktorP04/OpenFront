@@ -245,8 +245,17 @@ export class PlayerInfoOverlay extends LitElement implements Controller {
       this.setVisible(true);
     } else if (!this.game.isLand(tile)) {
       const units = this.game
-        .units(UnitType.Warship, UnitType.TradeShip, UnitType.TransportShip)
-        .filter((u) => euclideanDistWorld(worldCoord, u.tile(), this.game) < 50)
+        .units(
+          UnitType.Warship,
+          UnitType.Submarine,
+          UnitType.TradeShip,
+          UnitType.TransportShip,
+        )
+        .filter(
+          (u) =>
+            (u.type() !== UnitType.Submarine || u.isVisible()) &&
+            euclideanDistWorld(worldCoord, u.tile(), this.game) < 50,
+        )
         .sort(distSortUnitWorld(worldCoord, this.game));
 
       if (units.length > 0) {

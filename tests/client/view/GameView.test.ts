@@ -18,6 +18,7 @@ import {
   makeNameViewData,
   makePlayerUpdate,
   makeUnitUpdate,
+  stubConfig,
 } from "../../util/viewStubs";
 
 function withPlayers(
@@ -895,4 +896,42 @@ describe("GameView.unitsOwnedBy — per-tick owner index", () => {
     alice.units().pop();
     expect(alice.units()).toHaveLength(3);
   });
+});
+
+it("filters only submerged enemy submarines from renderer frames and restores them when revealed", () => {
+  const game = makeGameView({
+    myClientID: "client-a",
+    config: stubConfig({ isReplay: () => false }),
+  });
+  const update = withPlayers(1, [
+    makePlayerUpdate({ tilesOwned: 100 }),
+    makePlayerUpdate({
+      id: "player-b",
+      smallID: 2,
+      clientID: "client-b",
+      tilesOwned: 100,
+    }),
+  ]);
+  const own = makeUnitUpdate({
+    id: 1,
+    unitType: UnitType.Submarine,
+    ownerID: 1,
+    targetable: false,
+  });
+  const enemy = makeUnitUpdate({
+    id: 2,
+    unitType: UnitType.Submarine,
+    ownerID: 2,
+    targetable: false,
+  });
+  update.updates[GameUpdateType.Unit] = [own, enemy];
+  game.update(update);
+  expect(game.frameData().units.has(1)).toBe(true);
+  expect(game.frameData().units.has(2)).toBe(false);
+  // The deterministic mirror retains the unit; rendering never deletes simulation state.
+  expect(game.unit(2)?.isActive()).toBe(true);
+  const revealed = makeEmptyGu(2);
+  revealed.updates[GameUpdateType.Unit] = [{ ...enemy, targetable: true }];
+  game.update(revealed);
+  expect(game.frameData().units.has(2)).toBe(true);
 });

@@ -19,6 +19,10 @@ import { DefensePostExecution } from "./DefensePostExecution";
 import { FactoryExecution } from "./FactoryExecution";
 import { MirvExecution } from "./MIRVExecution";
 import { MissileSiloExecution } from "./MissileSiloExecution";
+import {
+  CoastalBatteryExecution,
+  SubmarineExecution,
+} from "./NavalUnitsExecution";
 import { NukeExecution } from "./NukeExecution";
 import { PortExecution } from "./PortExecution";
 import { SAMLauncherExecution } from "./SAMLauncherExecution";
@@ -139,6 +143,14 @@ export class ConstructionExecution implements Execution {
       case UnitType.MIRV:
         this.mg.addExecution(new MirvExecution(player, this.tile));
         break;
+      case UnitType.Submarine:
+        this.mg.addExecution(
+          new SubmarineExecution({ owner: player, patrolTile: this.tile }),
+        );
+        break;
+      case UnitType.CoastalBattery:
+        this.mg.addExecution(new CoastalBatteryExecution(this.structure!));
+        break;
       case UnitType.Warship:
         this.mg.addExecution(
           new WarshipExecution({ owner: player, patrolTile: this.tile }),
@@ -177,6 +189,7 @@ export class ConstructionExecution implements Execution {
       case UnitType.Port:
       case UnitType.MissileSilo:
       case UnitType.DefensePost:
+      case UnitType.CoastalBattery:
       case UnitType.SAMLauncher:
       case UnitType.City:
       case UnitType.Factory:

@@ -147,7 +147,9 @@ export class BarPass {
       // Veteran warships have a higher effective max health, so a full veteran
       // ship reads as full. Shared with the engine's UnitImpl.maxHealth().
       const maxHealth = maxHealthWithVeterancy(
-        this.warshipMaxHealth,
+        unit.unitType === UnitType.Submarine
+          ? (this.config.unitInfo(UnitType.Submarine).maxHealth ?? 600)
+          : this.warshipMaxHealth,
         unit.veterancy,
         this.veterancyHealthBonus,
       );

@@ -108,6 +108,21 @@ export class UnitView implements UnitLike {
     return this.state.id;
   }
 
+  isVisible(): boolean {
+    if (
+      this.type() !== UnitType.Submarine ||
+      this.targetable() ||
+      this.gameView.isSpectator()
+    )
+      return true;
+    const viewer = this.gameView.myPlayer();
+    return (
+      viewer === null ||
+      this.owner() === viewer ||
+      this.owner().isFriendly(viewer)
+    );
+  }
+
   targetable(): boolean {
     return this.state.targetable;
   }

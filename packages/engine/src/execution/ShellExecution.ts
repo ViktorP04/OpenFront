@@ -54,6 +54,7 @@ export class ShellExecution implements Execution {
     if (
       !this.target.isActive() ||
       this.target.owner() === this.shell.owner() ||
+      !this._owner.canAttackPlayer(this.target.owner(), true) ||
       (this.destroyAtTick !== -1 && this.mg.ticks() >= this.destroyAtTick)
     ) {
       this.shell.delete(false);
@@ -96,7 +97,12 @@ export class ShellExecution implements Execution {
 
   private effectOnTarget(): number {
     const { damage } = this.mg.config().unitInfo(UnitType.Shell);
-    const baseDamage = damage ?? 250;
+    const baseDamage =
+      this.ownerUnit.type() === UnitType.Submarine
+        ? this.mg.config().submarineDamage()
+        : this.ownerUnit.type() === UnitType.CoastalBattery
+          ? this.mg.config().coastalBatteryDamage()
+          : (damage ?? 250);
 
     const roll = this.random.nextInt(1, 6);
     let damageMultiplier = (roll - 1) * 25 + 200;

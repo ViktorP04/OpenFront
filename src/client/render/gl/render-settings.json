@@ -151,6 +151,10 @@
       "Missile Silo": {
         "scale": 1.55,
         "iconFill": 0.85
+      },
+      "Coastal Battery": {
+        "scale": 1.1,
+        "iconFill": 0.85
       }
     },
     "highlightOutlineWidth": 0.04,
@@ -409,6 +413,14 @@
     "Train": {
       "radius": 6,
       "intensity": 0.5
+    },
+    "Coastal Battery": {
+      "radius": 18,
+      "intensity": 1.2
+    },
+    "Submarine": {
+      "radius": 6,
+      "intensity": 1.5
     }
   }
 }

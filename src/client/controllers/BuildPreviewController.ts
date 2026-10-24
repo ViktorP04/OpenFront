@@ -470,6 +470,12 @@ export class BuildPreviewController implements Controller {
       case UnitType.Factory:
         rangeRadius = this.game.config().trainStationMaxRange();
         break;
+      case UnitType.CoastalBattery:
+        rangeRadius = this.game.config().coastalBatteryRange();
+        break;
+      case UnitType.Submarine:
+        rangeRadius = this.game.config().submarineRange();
+        break;
       case UnitType.DefensePost:
         rangeRadius = this.game.config().defensePostRange();
         break;

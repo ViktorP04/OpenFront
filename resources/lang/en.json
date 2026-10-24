@@ -199,7 +199,9 @@
       "missile_silo": "Used to launch nukes",
       "port": "Sends trade ships to generate gold",
       "sam_launcher": "Defends against incoming nukes",
-      "warship": "Captures trade ships, destroys ships and boats"
+      "warship": "Captures trade ships, destroys ships and boats",
+      "submarine": "Stealth raider that sinks ships. Revealed when firing or near enemy warships and coastal batteries. Built at a port; use fleet controls to move.",
+      "coastal_battery": "Shoreline gun that fires at hostile ships within 100 tiles. Detects nearby submarines. No land-defense bonus."
     },
     "not_enough_money": "Not enough money",
     "upgrade_amount": "x{amount}",
@@ -2566,6 +2568,8 @@
     "title": "Tutorial"
   },
   "unit_type": {
+    "submarine": "Submarine",
+    "coastal_battery": "Coastal Battery",
     "atom_bomb": "Atom Bomb",
     "boat": "Boat",
     "city": "City",

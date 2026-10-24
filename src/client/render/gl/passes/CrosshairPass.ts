@@ -7,7 +7,7 @@
  */
 
 import type { GhostPreviewData } from "../../types";
-import { UT_MIRV, UT_WARSHIP } from "../../types";
+import { UT_MIRV, UT_WARSHIP, UT_SUBMARINE } from "../../types";
 import { createProgram } from "../utils/GlUtils";
 
 import fragSrc from "../shaders/crosshair/crosshair.frag.glsl?raw";
@@ -98,7 +98,12 @@ export class CrosshairPass {
   }
 
   updateGhostPreview(data: GhostPreviewData | null): void {
-    if (data && (data.ghostType === UT_WARSHIP || data.ghostType === UT_MIRV)) {
+    if (
+      data &&
+      (data.ghostType === UT_WARSHIP ||
+        data.ghostType === UT_SUBMARINE ||
+        data.ghostType === UT_MIRV)
+    ) {
       this.active = true;
       this.centerX = data.tileX;
       this.centerY = data.tileY;

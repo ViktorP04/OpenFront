@@ -60,9 +60,11 @@ export class HoverHighlightController implements Controller {
       let closestDistSquared = 2500;
       for (const u of this.game.units(
         UnitType.Warship,
+        UnitType.Submarine,
         UnitType.TradeShip,
         UnitType.TransportShip,
       )) {
+        if (u.type() === UnitType.Submarine && !u.isVisible()) continue;
         const distSquared = this.game.euclideanDistSquared(ref, u.tile());
         if (distSquared < closestDistSquared) {
           closestDistSquared = distSquared;

@@ -1607,8 +1607,18 @@ export class PlayerImpl implements Player {
         return targetTile;
       case UnitType.Port:
         return this.portSpawn(targetTile, validTiles);
+      case UnitType.Submarine:
       case UnitType.Warship:
         return this.warshipSpawn(targetTile);
+      case UnitType.CoastalBattery:
+        return (
+          (validTiles ?? this.validStructureSpawnTiles(targetTile)).find(
+            (tile) =>
+              this.mg
+                .neighbors(tile)
+                .some((neighbor) => this.mg.isWater(neighbor)),
+          ) ?? false
+        );
       case UnitType.Shell:
       case UnitType.SAMMissile:
         return targetTile;

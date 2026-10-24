@@ -1,3 +1,5 @@
+export const UT_SUBMARINE = "Submarine" as const;
+export const UT_COASTAL_BATTERY = "Coastal Battery" as const;
 /**
  * Canonical unit type string constants.
  *
@@ -41,6 +43,7 @@ export const STRUCTURE_TYPES: ReadonlySet<string> = new Set([
   UT_DEFENSE_POST,
   UT_SAM_LAUNCHER,
   UT_MISSILE_SILO,
+  UT_COASTAL_BATTERY,
 ]);
 
 export const NUKE_TYPES: ReadonlySet<string> = new Set([
@@ -99,4 +102,6 @@ export const ALL_UNIT_TYPES = [
   UT_SAM_LAUNCHER,
   UT_MISSILE_SILO,
   UT_TRAIN,
+  UT_SUBMARINE,
+  UT_COASTAL_BATTERY,
 ] as const;
