@@ -56,6 +56,35 @@ beforeEach(() => {
 afterEach(() => db.close());
 
 describe("local progression", () => {
+  it.each([GameType.Private, GameType.Public])(
+    "awards XP for confirmed %s matches with Fog of War",
+    (gameType) => {
+      const game = match();
+      game.info.config.gameType = gameType;
+      game.info.config.fogOfWar = true;
+      xp.awardMatch(game, now);
+      expect(xp.game(completionUser, game.info.gameID)).toMatchObject({
+        eligible: true,
+      });
+      expect(xp.progress(completionUser, now).lifetimeXp).toBeGreaterThan(0);
+    },
+  );
+  it.each([false, true])(
+    "awards XP for otherwise eligible solo games with Fog of War set to %s",
+    (fogOfWar) => {
+      const game = info();
+      game.config.fogOfWar = fogOfWar;
+      expect(xp.startSolo(completionUser, game.gameID, game.config, now)).toBe(
+        true,
+      );
+      const result = xp.finishSolo(completionUser, game, now + 301000);
+      expect(result).toMatchObject({
+        eligible: true,
+        breakdown: { total: 38 },
+      });
+      expect(xp.progress(completionUser, now).lifetimeXp).toBe(38);
+    },
+  );
   it("exposes a valid 100-level curve and starts existing accounts at level 1", () => {
     expect(
       ProgressionConfigSchema.safeParse(LOCAL_PROGRESSION_CONFIG).success,

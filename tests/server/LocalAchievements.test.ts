@@ -10,6 +10,24 @@ it("accepts a standard single-player map win for its account", () => {
   });
   expect(eligibleCompletion(completionInfo(), "another-account")).toBeNull();
 });
+it.each([false, true])(
+  "allows map achievements with Fog of War set to %s",
+  (fogOfWar) => {
+    const info = completionInfo();
+    expect(
+      eligibleCompletion(
+        { ...info, config: { ...info.config, fogOfWar } },
+        completionUser,
+      ),
+    ).toEqual({ mapName: "Viktor", difficulty: "Medium" });
+    expect(
+      eligibleCompletion(
+        { ...info, config: { ...info.config, fogOfWar, infiniteGold: true } },
+        completionUser,
+      ),
+    ).toBeNull();
+  },
+);
 it.each([
   { infiniteGold: true },
   { infiniteTroops: true },

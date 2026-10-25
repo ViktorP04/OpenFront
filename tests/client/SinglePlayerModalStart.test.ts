@@ -25,6 +25,14 @@ function createModal(): any {
 }
 
 describe("SinglePlayerModal start", () => {
+  it("keeps Fog of War eligible for achievements while still flagging other modified settings", () => {
+    const modal = createModal();
+    expect(modal.hasOptionsChanged()).toBe(false);
+    modal.fogOfWar = true;
+    expect(modal.hasOptionsChanged()).toBe(false);
+    modal.infiniteGold = true;
+    expect(modal.hasOptionsChanged()).toBe(true);
+  });
   it("carries the selected team count and validated disabled units into the join-lobby config", async () => {
     const modal = createModal();
     const events: any[] = [];

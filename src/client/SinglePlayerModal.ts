@@ -635,7 +635,7 @@ export class SinglePlayerModal extends BaseModal {
     `;
   }
 
-  // Check if any options other than map and difficulty have been changed from defaults
+  // Map, difficulty, and Fog of War are achievement-eligible options.
   private hasOptionsChanged(): boolean {
     return (
       this.nations !== this.defaultNationCount ||
@@ -646,7 +646,6 @@ export class SinglePlayerModal extends BaseModal {
       this.maxTimer !== DEFAULT_OPTIONS.maxTimer ||
       this.instantBuild !== DEFAULT_OPTIONS.instantBuild ||
       this.randomSpawn !== DEFAULT_OPTIONS.randomSpawn ||
-      this.fogOfWar ||
       this.gameMode !== DEFAULT_OPTIONS.gameMode ||
       this.goldMultiplier !== DEFAULT_OPTIONS.goldMultiplier ||
       this.startingGold !== DEFAULT_OPTIONS.startingGold ||
