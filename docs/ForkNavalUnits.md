@@ -24,7 +24,7 @@ spacing. They take eight seconds to complete and give no defense-post land bonus
 They fire automatically on hostile military ships and transports, ignoring trade
 ships, and belong to whoever captures their territory. Warships and submarines
 can destroy them with normal naval fire;
-damaged batteries show health bars. After 15 seconds without taking damage,
+damaged batteries show health bars. After 30 seconds without taking damage,
 they regenerate 5 health per second up to their 800-health maximum. Further
 damage restarts that delay; unfinished or destroyed batteries cannot regenerate.
 In fog, ships target batteries they can see,

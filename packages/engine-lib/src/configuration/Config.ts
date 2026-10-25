@@ -195,7 +195,7 @@ export class Config {
     return 300;
   }
   coastalBatteryRegenDelayTicks(): number {
-    return 150;
+    return 300;
   }
   coastalBatteryRegenIntervalTicks(): number {
     return 10;
