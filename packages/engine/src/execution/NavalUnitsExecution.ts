@@ -225,6 +225,7 @@ export class SubmarineExecution implements Execution {
   }
   tick(tick: number): void {
     if (!this.sub?.isActive()) return;
+    this.healAtPort();
     this.updateVisibility(tick);
     for (const unit of this.sentTo)
       if (!unit.isActive()) this.sentTo.delete(unit);
@@ -264,6 +265,26 @@ export class SubmarineExecution implements Execution {
         this.sub.setTargetTile(undefined);
     } else if (step.status === PathStatus.NOT_FOUND)
       this.sub.setTargetTile(undefined);
+  }
+  private healAtPort(): void {
+    const sub = this.sub!;
+    const owner = sub.owner();
+    if (owner.inDoomsdayClock() || sub.health() >= sub.maxHealth()) return;
+    const config = this.game.config();
+    const rangeSquared = config.warshipPassiveHealingRange() ** 2;
+    const component = this.game.getWaterComponent(sub.tile());
+    if (component === null) return;
+    const nearPort = owner
+      .units(UnitType.Port)
+      .some(
+        (port) =>
+          port.isActive() &&
+          !port.isUnderConstruction() &&
+          this.game.euclideanDistSquared(sub.tile(), port.tile()) <=
+            rangeSquared &&
+          this.game.hasWaterComponent(port.tile(), component),
+      );
+    if (nearPort) sub.modifyHealth(config.warshipPassiveHealing());
   }
   isActive(): boolean {
     return this.sub?.isActive() ?? false;

@@ -311,6 +311,68 @@ describe("Coastal Battery", () => {
 });
 
 describe("Submarine", () => {
+  it("repairs near an owned completed port without revealing or changing scout mode", async () => {
+    const sub = a.buildUnit(UnitType.Submarine, at(60, 20), {
+      patrolTile: at(60, 20),
+    });
+    a.buildUnit(UnitType.Port, at(7, 20), {});
+    a.buildUnit(UnitType.Port, at(7, 38), {});
+    game.addExecution(new SubmarineExecution(sub));
+    executeTicks(game, 2);
+    sub.modifyHealth(-100);
+    executeTicks(game, 10);
+    expect(sub.health()).toBe(510); // Overlapping ports do not stack passive repair.
+    expect(sub.isTargetable()).toBe(false);
+    expect(sub.warshipState().scoutMode).toBe(true);
+    await navalRoundTrip(game, 10);
+    expect(sub.health()).toBe(520);
+    executeTicks(game, 100);
+    expect(sub.health()).toBe(600);
+  });
+
+  it("only repairs within port range and stops for unfinished, lost, or destroyed ports", () => {
+    const sub = subAt(a, 157, 20);
+    const port = a.buildUnit(UnitType.Port, at(7, 20), {});
+    executeTicks(game, 2);
+    sub.modifyHealth(-100);
+    executeTicks(game, 1);
+    expect(sub.health()).toBe(501); // Exactly 150 tiles away.
+    sub.updateWarshipState({ patrolTile: at(158, 20) });
+    sub.move(at(158, 20));
+    executeTicks(game, 1);
+    expect(sub.health()).toBe(501);
+    sub.updateWarshipState({ patrolTile: at(157, 20) });
+    sub.move(at(157, 20));
+    port.setUnderConstruction(true);
+    executeTicks(game, 2);
+    expect(sub.health()).toBe(501);
+    port.setUnderConstruction(false);
+    b.captureUnit(port);
+    executeTicks(game, 2);
+    expect(sub.health()).toBe(501);
+    a.createAllianceRequest(b)!.accept();
+    executeTicks(game, 2);
+    expect(sub.health()).toBe(501); // Allied ports do not repair it either.
+    a.captureUnit(port);
+    executeTicks(game, 1);
+    expect(sub.health()).toBe(502);
+    port.delete();
+    executeTicks(game, 2);
+    expect(sub.health()).toBe(502);
+  });
+
+  it("suspends submarine port repairs while the owner is in the Doomsday Clock", () => {
+    const sub = subAt(a);
+    a.buildUnit(UnitType.Port, at(7, 20), {});
+    executeTicks(game, 2);
+    sub.modifyHealth(-100);
+    a.enterDoomsdayClock();
+    executeTicks(game, 10);
+    expect(sub.health()).toBe(500);
+    a.clearDoomsdayClock();
+    executeTicks(game, 1);
+    expect(sub.health()).toBe(501);
+  });
   it("holds fire by default and can switch between scouting and attacking", async () => {
     const sub = a.buildUnit(UnitType.Submarine, at(60, 20), {
       patrolTile: at(60, 20),

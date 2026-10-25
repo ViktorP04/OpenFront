@@ -45,6 +45,11 @@ It launches at the nearest connected port and moves to the selected position,
 where it holds its ambush station. Use the same click, touch, box-selection, and
 select-all fleet controls used for warships to move it again. It cannot capture
 land, has no automatic repair retreat, and does not gain warship veterancy.
+Damaged submarines passively repair at 10 health per second within 150 tiles
+of a completed port owned by their player, connected to the same water. Allied,
+enemy, unfinished, or destroyed ports do not repair them. Repair does not stack
+across ports, change their mode, or reveal them, and stops while the owner is
+in the Doomsday Clock.
 
 Submarines start in **Scout mode** and hold fire, even when attacked. Select one
 or a group and use the **Submarine mode** button in the bottom HUD to enable
