@@ -97,6 +97,7 @@ const SAMPLE_INTENTS: StampedIntent[] = [
   { type: "embargo", clientID: P1, targetID: P2, action: "start" },
   { type: "embargo_all", clientID: P1, action: "stop" },
   { type: "move_warship", clientID: P3, unitIds: [1, 2, 3], tile: 555 },
+  { type: "build_unit", clientID: P3, unit: UnitType.Satellite, tile: 555 },
   {
     type: "set_submarine_mode",
     clientID: P3,

@@ -27,6 +27,7 @@ export class RangeCirclePass {
   private centerY = 0;
   private radius = 0;
   private warning = false;
+  private orbit?: GhostPreviewData["orbit"];
 
   constructor(gl: WebGL2RenderingContext) {
     this.gl = gl;
@@ -53,6 +54,7 @@ export class RangeCirclePass {
   }
 
   updateGhostPreview(data: GhostPreviewData | null): void {
+    this.orbit = data?.orbit;
     if (data && data.rangeRadius > 0) {
       this.centerX = data.radiusTileX;
       this.centerY = data.radiusTileY;
@@ -72,14 +74,19 @@ export class RangeCirclePass {
     gl.uniformMatrix3fv(this.uCamera, false, cameraMatrix);
     gl.bindVertexArray(this.vao);
 
-    gl.uniform2f(this.uCenter, this.centerX, this.centerY);
     gl.uniform1f(this.uRadius, this.radius);
     if (this.warning) {
       gl.uniform3f(this.uColor, 1.0, 0.2, 0.2);
     } else {
       gl.uniform3f(this.uColor, 1.0, 1.0, 1.0);
     }
-    gl.drawArrays(gl.TRIANGLES, 0, 6);
+    const xs = this.orbit ? [-this.orbit.width, 0, this.orbit.width] : [0];
+    const ys = this.orbit ? [-this.orbit.height, 0, this.orbit.height] : [0];
+    for (const x of xs)
+      for (const y of ys) {
+        gl.uniform2f(this.uCenter, this.centerX + x, this.centerY + y);
+        gl.drawArrays(gl.TRIANGLES, 0, 6);
+      }
   }
 
   dispose(): void {

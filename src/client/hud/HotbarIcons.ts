@@ -22,4 +22,5 @@ export const traitorIcon = assetUrl("images/TraitorIcon.svg");
 
 export const submarineIcon = assetUrl("images/SubmarineIcon.svg");
 export const radarStationIcon = assetUrl("images/RadarStationIcon.svg");
+export const satelliteIcon = assetUrl("images/SatelliteIcon.svg");
 export const coastalBatteryIcon = assetUrl("images/CoastalBatteryIcon.svg");

@@ -48,6 +48,7 @@ import { NamePass } from "./passes/name-pass";
 import { NightCompositePass } from "./passes/NightCompositePass";
 import { NukeTelegraphPass } from "./passes/NukeTelegraphPass";
 import { NukeTrajectoryPass } from "./passes/NukeTrajectoryPass";
+import { OrbitPreviewPass } from "./passes/OrbitPreviewPass";
 import { PointLightPass } from "./passes/PointLightPass";
 import { RailroadPass } from "./passes/RailroadPass";
 import { RangeCirclePass } from "./passes/RangeCirclePass";
@@ -144,6 +145,7 @@ export class GPURenderer {
   private namePass: NamePass;
   private fxPass: FxPass;
   private rangeCirclePass: RangeCirclePass;
+  private orbitPreviewPass: OrbitPreviewPass;
   private samRadiusPass: SAMRadiusPass;
   private batteryRadiusPass: SAMRadiusPass;
   private batteryGhostVisible = false;
@@ -566,6 +568,7 @@ export class GPURenderer {
 
     // --- Range circle (ghost preview radius) ---
     this.rangeCirclePass = new RangeCirclePass(gl);
+    this.orbitPreviewPass = new OrbitPreviewPass(gl);
 
     // --- SAM radius overlay (dashed green circles during build mode) ---
     this.samRadiusPass = new SAMRadiusPass(gl, mapW, this.settings);
@@ -1087,6 +1090,7 @@ export class GPURenderer {
     this.structurePass.updateGhostPreview(data);
     this.railroadPass.updateGhostPreview(data);
     this.rangeCirclePass.updateGhostPreview(data);
+    this.orbitPreviewPass?.updateGhostPreview(data);
     this.crosshairPass.updateGhostPreview(data);
     // The multiplier badge (x5) rides on the cost label but must show even
     // when there is no cost line — e.g. infinite gold (cost 0) or the
@@ -1412,6 +1416,7 @@ export class GPURenderer {
     if (pe.falloutBloom) this.bloomPass.draw(cam, this.frameTick);
     this.samRadiusPass.draw(cam);
     this.batteryRadiusPass.draw(cam);
+    this.orbitPreviewPass.draw(cam);
     this.rangeCirclePass.draw(cam);
     this.nukeTrajectoryPass.draw(cam);
     this.crosshairPass.draw(cam);
@@ -1550,6 +1555,7 @@ export class GPURenderer {
     this.smallPlayerGlowPass.dispose();
     this.railroadPass.dispose();
     this.rangeCirclePass.dispose();
+    this.orbitPreviewPass.dispose();
     this.samRadiusPass.dispose();
     this.batteryRadiusPass.dispose();
     this.crosshairPass.dispose();

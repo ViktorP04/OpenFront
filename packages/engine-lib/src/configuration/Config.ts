@@ -261,6 +261,9 @@ export class Config {
 
     let info: UnitInfo;
     switch (type) {
+      case UnitType.Satellite:
+        info = {};
+        break;
       case UnitType.Submarine:
         info = { maxHealth: 600 };
         break;

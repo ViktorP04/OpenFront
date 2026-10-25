@@ -55,6 +55,7 @@ export interface OwnerComp {
 }
 
 export interface UnitParamsMap {
+  [UnitType.Satellite]: Record<string, never>;
   [UnitType.TransportShip]: {
     troops?: number;
     targetTile?: TileRef;

@@ -106,8 +106,14 @@ it("groups custom buttons at the far right with shortcut labels and hides radar 
   expect(
     [...container.querySelectorAll("img[alt]")]
       .map((el) => el.getAttribute("alt"))
-      .slice(-4),
-  ).toEqual(["mirv", "coastal_battery", "submarine", "radar_station"]);
+      .slice(-5),
+  ).toEqual([
+    "mirv",
+    "coastal_battery",
+    "submarine",
+    "radar_station",
+    "satellite",
+  ]);
   expect(
     container.querySelector('img[alt="coastal_battery"]')?.parentElement
       ?.parentElement?.textContent,
@@ -123,4 +129,5 @@ it("groups custom buttons at the far right with shortcut labels and hides radar 
   fog = false;
   render(display.render(), container);
   expect(container.querySelector('img[alt="radar_station"]')).toBeNull();
+  expect(container.querySelector('img[alt="satellite"]')).toBeNull();
 });

@@ -26,6 +26,7 @@ import {
 import { NukeExecution } from "./NukeExecution";
 import { PortExecution } from "./PortExecution";
 import { SAMLauncherExecution } from "./SAMLauncherExecution";
+import { SatelliteExecution } from "./SatelliteExecution";
 import { WarshipExecution } from "./WarshipExecution";
 
 export class ConstructionExecution implements Execution {
@@ -121,6 +122,9 @@ export class ConstructionExecution implements Execution {
     }
     const player = this.player;
     switch (this.constructionType) {
+      case UnitType.Satellite:
+        this.mg.addExecution(new SatelliteExecution(player, this.tile));
+        break;
       case UnitType.AtomBomb:
       case UnitType.HydrogenBomb: {
         const count = this.amount ?? 1;

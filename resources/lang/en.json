@@ -208,6 +208,7 @@
       "port": "Sends trade ships to generate gold",
       "sam_launcher": "Defends against incoming nukes",
       "warship": "Captures trade ships, destroys ships and boats",
+      "satellite": "Orbital reconnaissance from a ready missile silo. Reveals a moving 160-tile circle, wrapping around map edges. Aim from the silo toward a map location to choose its orbit. Uses one silo launch slot. No damage or submarine detection.",
       "submarine": "Stealth scout with 70-tile vision. Attacks military ships and transports, ignoring trade ships. Starts in Scout mode and holds fire; select it to toggle Attack mode. Warships detect it within 15 tiles; coastal batteries within 35. Firing reveals it for 5 seconds. Repairs 10 health per second within 150 tiles of your completed connected ports. Built at a port; use fleet controls to move.",
       "coastal_battery": "Shoreline gun with 800 health and 40-tile starting range. Targets military ships and transports; ignores trade ships. Regenerates 5 health per second after 30 seconds without damage. Warships and submarines can destroy it. Upgrade to extend its reach toward 140 tiles. Detects nearby submarines. No land-defense bonus.",
       "radar_station": "Reveals terrain ownership and surface units within 150 tiles. Upgrade for wider coverage: 200 at level 2, 225 at level 3, approaching 300. Allies share vision. Does not detect submerged submarines. Requires Fog of War."
@@ -2579,6 +2580,7 @@
   },
   "unit_type": {
     "submarine": "Submarine",
+    "satellite": "Satellite",
     "coastal_battery": "Coastal Battery",
     "radar_station": "Radar Station",
     "atom_bomb": "Atom Bomb",

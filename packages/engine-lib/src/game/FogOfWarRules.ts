@@ -1,11 +1,13 @@
 import { UnitType } from "@openfront/engine-api/game/GameTypes";
 import { radarRange } from "./NavalBalance";
+import { SATELLITE_VISION } from "./SatelliteOrbit";
 
 export const TERRITORY_VISION = 20;
 export const SHIP_VISION_LINGER_TICKS = 100;
 export const RADAR_VISION = radarRange();
 
 export function unitVisionRadius(type: string, level = 1): number {
+  if (type === UnitType.Satellite) return SATELLITE_VISION;
   if (type === UnitType.TradeShip) return 10;
   if (type === UnitType.Submarine) return 70;
   if (type === UnitType.RadarStation) return radarRange(level);

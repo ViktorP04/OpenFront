@@ -31,6 +31,7 @@ import {
   submarineIcon,
   coastalBatteryIcon,
   radarStationIcon,
+  satelliteIcon,
 } from "../HotbarIcons";
 import { TutorialHighlight, TutorialHighlightEvent } from "../Tutorial";
 
@@ -102,6 +103,7 @@ export class UnitDisplay extends LitElement implements Controller {
       case UnitType.AtomBomb:
       case UnitType.HydrogenBomb:
       case UnitType.MIRV:
+      case UnitType.Satellite:
         return (
           this.cost(item) <= (player?.gold() ?? 0n) &&
           (player?.units(UnitType.MissileSilo).length ?? 0) > 0
@@ -245,6 +247,17 @@ export class UnitDisplay extends LitElement implements Controller {
                 )
               : ""
           }
+          ${
+            this.game.config().fogOfWar()
+              ? this.renderUnitItem(
+                  satelliteIcon,
+                  myPlayer.totalUnitLevels(UnitType.Satellite),
+                  UnitType.Satellite,
+                  "satellite",
+                  "",
+                )
+              : ""
+          }
         </div>
       </div>
     `;
@@ -337,6 +350,11 @@ export class UnitDisplay extends LitElement implements Controller {
           }}
           @mouseenter=${() => {
             switch (unitType) {
+              case UnitType.Satellite:
+                this.eventBus?.emit(
+                  new ToggleStructureEvent([UnitType.MissileSilo]),
+                );
+                break;
               case UnitType.AtomBomb:
               case UnitType.HydrogenBomb:
                 this.eventBus?.emit(

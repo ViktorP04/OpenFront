@@ -212,6 +212,7 @@ export enum UnitType {
   CoastalBattery = "Coastal Battery",
   Submarine = "Submarine",
   RadarStation = "Radar Station",
+  Satellite = "Satellite",
 }
 
 export enum TrainType {
@@ -233,6 +234,7 @@ export const BuildableAttacks = unitTypeGroup([
   UnitType.MIRV,
   UnitType.Warship,
   UnitType.Submarine,
+  UnitType.Satellite,
 ] as const);
 
 export const Structures = unitTypeGroup([

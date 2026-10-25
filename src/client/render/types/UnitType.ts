@@ -1,3 +1,4 @@
+export const UT_SATELLITE = "Satellite" as const;
 export const UT_RADAR_STATION = "Radar Station" as const;
 export const UT_SUBMARINE = "Submarine" as const;
 export const UT_COASTAL_BATTERY = "Coastal Battery" as const;
@@ -107,4 +108,5 @@ export const ALL_UNIT_TYPES = [
   UT_SUBMARINE,
   UT_COASTAL_BATTERY,
   UT_RADAR_STATION,
+  UT_SATELLITE,
 ] as const;

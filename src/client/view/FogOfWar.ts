@@ -21,7 +21,7 @@ export class FogOfWar {
   update(
     owners: Uint16Array,
     friendly: ReadonlySet<number>,
-    sources: Iterable<{ pos: number; radius: number }>,
+    sources: Iterable<{ pos: number; radius: number; wrap?: boolean }>,
   ): Uint8Array {
     const { visible, width, queue } = this;
     visible.fill(0);
@@ -66,26 +66,34 @@ export class FogOfWar {
     return visible;
   }
 
-  addSources(sources: Iterable<{ pos: number; radius: number }>): void {
+  addSources(
+    sources: Iterable<{ pos: number; radius: number; wrap?: boolean }>,
+  ): void {
     const { visible, width, height } = this;
     // Circular mobile/structure vision. Rasterize horizontal spans, avoiding
     // square roots per tile and keeping radar overlap inexpensive.
-    for (const { pos, radius } of sources) {
+    for (const { pos, radius, wrap } of sources) {
       if (radius <= 0) continue;
-      const cx = pos % width,
-        cy = Math.floor(pos / width);
-      for (
-        let y = Math.max(0, cy - radius);
-        y <= Math.min(height - 1, cy + radius);
-        y++
-      ) {
-        const dx = Math.floor(Math.sqrt(radius * radius - (y - cy) ** 2));
-        visible.fill(
-          1,
-          y * width + Math.max(0, cx - dx),
-          y * width + Math.min(width - 1, cx + dx) + 1,
-        );
-      }
+      const offsetsX = wrap ? [-width, 0, width] : [0];
+      const offsetsY = wrap ? [-height, 0, height] : [0];
+      for (const ox of offsetsX)
+        for (const oy of offsetsY) {
+          const cx = (pos % width) + ox,
+            cy = Math.floor(pos / width) + oy;
+          for (
+            let y = Math.max(0, cy - radius);
+            y <= Math.min(height - 1, cy + radius);
+            y++
+          ) {
+            const dx = Math.floor(Math.sqrt(radius * radius - (y - cy) ** 2));
+            if (cx + dx < 0 || cx - dx >= width) continue;
+            visible.fill(
+              1,
+              y * width + Math.max(0, cx - dx),
+              y * width + Math.min(width - 1, cx + dx) + 1,
+            );
+          }
+        }
     }
   }
 }

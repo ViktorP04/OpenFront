@@ -19,6 +19,7 @@ import {
   listNukeBreakAlliance,
   wouldNukeBreakAlliance,
 } from "@openfront/engine-lib/execution/NukeAlliance";
+import { SATELLITE_VISION } from "@openfront/engine-lib/game/SatelliteOrbit";
 import { EventBus } from "@openfront/shared/EventBus";
 import { Controller } from "../Controller";
 import {
@@ -222,7 +223,10 @@ export class BuildPreviewController implements Controller {
       // trajectory preview is the exception: nukes fly over impassable
       // terrain, so the arc still renders (with a blocked X at the
       // untargetable destination — see cursorLoop).
-      if (this.game.isImpassable(tileRef)) {
+      if (
+        this.game.isImpassable(tileRef) &&
+        this.ghostUnit.buildableUnit.type !== UnitType.Satellite
+      ) {
         tileRef = undefined;
       }
     }
@@ -471,6 +475,9 @@ export class BuildPreviewController implements Controller {
     // previews show the outer blast radius at the target tile.
     let rangeRadius = 0;
     switch (u.type) {
+      case UnitType.Satellite:
+        rangeRadius = SATELLITE_VISION;
+        break;
       case UnitType.SAMLauncher: {
         const level = this.resolveGhostRangeLevel(u) ?? 1;
         rangeRadius = this.game.config().samRange(level);
@@ -527,7 +534,8 @@ export class BuildPreviewController implements Controller {
       ghostType: u.type,
       tileX: this.game.x(placementTile),
       tileY: this.game.y(placementTile),
-      snapToPlacement: placementTile !== tileRef,
+      snapToPlacement:
+        placementTile !== tileRef || u.type === UnitType.Satellite,
       radiusTileX,
       radiusTileY,
       canBuild: u.canBuild !== false,
@@ -542,6 +550,16 @@ export class BuildPreviewController implements Controller {
       upgradeTargetTile,
       rangeRadius,
       rangeWarning: targetingAlly,
+      ...(u.type === UnitType.Satellite && u.canBuild !== false
+        ? {
+            orbit: {
+              sourceX: this.game.x(u.canBuild),
+              sourceY: this.game.y(u.canBuild),
+              width: this.game.width(),
+              height: this.game.height(),
+            },
+          }
+        : {}),
     };
   }
 
@@ -579,7 +597,7 @@ export class BuildPreviewController implements Controller {
         ),
       );
       this.removeGhostStructure();
-    } else if (this.ghostUnit.buildableUnit.canBuild) {
+    } else if (this.ghostUnit.buildableUnit.canBuild !== false) {
       // The pointer can be released just off the map edge before the
       // throttled hover refresh marks the ghost unbuildable; there is no
       // tile to build on, so keep the ghost and wait for a click on the map.

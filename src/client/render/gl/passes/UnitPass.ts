@@ -50,6 +50,7 @@ import {
   UT_TRANSPORT,
   UT_WARSHIP,
   UT_SUBMARINE,
+  UT_SATELLITE,
 } from "../../types";
 import { DynamicInstanceBuffer } from "../DynamicBuffer";
 import type { RenderSettings } from "../RenderSettings";
@@ -88,6 +89,7 @@ const UNIT_ORDER = [
   "TrainCarriage",
   "TrainCarriageLoaded",
   UT_SUBMARINE,
+  UT_SATELLITE,
 ] as const;
 
 const ATLAS_COLS = UNIT_ORDER.length;
@@ -150,6 +152,7 @@ const MISSILE_TYPES: ReadonlySet<string> = new Set([
   UT_SAM_MISSILE,
   UT_SHELL,
   UT_MIRV_WARHEAD,
+  UT_SATELLITE,
 ]);
 
 /** Values per smoothing segment in the flat `smoothSegs` array:

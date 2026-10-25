@@ -125,6 +125,7 @@ const unitOptions: { type: UnitType; translationKey: string }[] = [
     translationKey: "unit_type.coastal_battery",
   },
   { type: UnitType.RadarStation, translationKey: "unit_type.radar_station" },
+  { type: UnitType.Satellite, translationKey: "unit_type.satellite" },
 ];
 
 const MAP_ICON = svg`<path

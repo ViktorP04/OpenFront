@@ -120,6 +120,7 @@ export class UnitImpl implements Unit {
     this._trainType = "trainType" in params ? params.trainType : undefined;
 
     switch (this._type) {
+      case UnitType.Satellite:
       case UnitType.RadarStation:
       case UnitType.CoastalBattery:
       case UnitType.Submarine:
@@ -252,6 +253,7 @@ export class UnitImpl implements Unit {
   setOwner(newOwner: PlayerImpl): void {
     this.clearPendingDeletion();
     switch (this._type) {
+      case UnitType.Satellite:
       case UnitType.RadarStation:
       case UnitType.CoastalBattery:
       case UnitType.Submarine:
@@ -393,6 +395,7 @@ export class UnitImpl implements Unit {
         case UnitType.MissileSilo:
         case UnitType.Port:
         case UnitType.SAMLauncher:
+        case UnitType.Satellite:
         case UnitType.RadarStation:
         case UnitType.CoastalBattery:
         case UnitType.Submarine:

@@ -224,6 +224,7 @@ export interface PlayerStatusData {
 
 /** Ghost structure preview data for build-mode visualization. */
 export interface GhostPreviewData {
+  orbit?: { sourceX: number; sourceY: number; width: number; height: number };
   snapToPlacement?: boolean; // Keep displaced structure previews at the resolved build tile.
   ghostType: string; // UnitType string ("City", "Port", etc.)
   tileX: number; // Hover tile X

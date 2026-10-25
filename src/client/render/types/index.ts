@@ -58,4 +58,5 @@ export {
   UT_SUBMARINE,
   UT_COASTAL_BATTERY,
   UT_RADAR_STATION,
+  UT_SATELLITE,
 } from "./UnitType";

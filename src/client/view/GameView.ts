@@ -680,6 +680,7 @@ export class GameView implements GameLike {
         .map((u) => ({
           pos: u.tile(),
           radius: unitVisionRadius(u.type(), u.level()),
+          wrap: u.type() === UnitType.Satellite,
         }));
       this.fog.update(this._map.tileStateBuffer(), friendly, sources);
       this.fog.addSources(

@@ -1597,6 +1597,24 @@ export class PlayerImpl implements Player {
     if (unitType === UnitType.RadarStation && !this.mg.config().fogOfWar())
       return false;
     switch (unitType) {
+      case UnitType.Satellite: {
+        if (!this.mg.config().fogOfWar() || !this.mg.isValidRef(targetTile))
+          return false;
+        const silos = this.units(UnitType.MissileSilo).filter(
+          (silo) =>
+            silo.isActive() &&
+            !silo.isUnderConstruction() &&
+            !silo.isInCooldown() &&
+            silo.tile() !== targetTile,
+        );
+        silos.sort(
+          (a, b) =>
+            this.mg.euclideanDistSquared(a.tile(), targetTile) -
+              this.mg.euclideanDistSquared(b.tile(), targetTile) ||
+            a.id() - b.id(),
+        );
+        return silos[0]?.tile() ?? false;
+      }
       case UnitType.MIRV:
         if (!this.mg.hasOwner(targetTile)) {
           return false;

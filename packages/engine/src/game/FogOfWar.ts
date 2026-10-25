@@ -4,6 +4,10 @@ import {
   TERRITORY_VISION,
   unitVisionRadius,
 } from "@openfront/engine-lib/game/FogOfWarRules";
+import {
+  satelliteDistanceSquared,
+  SATELLITE_VISION,
+} from "@openfront/engine-lib/game/SatelliteOrbit";
 import { Game, Player } from "./Game";
 
 const LOCAL_SOURCES = [
@@ -29,6 +33,25 @@ export function hasTileVision(
   if (!game.config().fogOfWar() || game.inSpawnPhase()) return true;
   const friendly = (owner: Player) =>
     owner === viewer || owner.isFriendly(viewer);
+  if (
+    game
+      .units(UnitType.Satellite)
+      .some(
+        (satellite) =>
+          satellite.isActive() &&
+          friendly(satellite.owner()) &&
+          satelliteDistanceSquared(
+            game.width(),
+            game.height(),
+            game.x(tile),
+            game.y(tile),
+            game.x(satellite.tile()),
+            game.y(satellite.tile()),
+          ) <=
+            SATELLITE_VISION ** 2,
+      )
+  )
+    return true;
   if (
     game.shipVisionTrails().hasVision(game.ticks(), tile, (id) => {
       const owner = game.playerBySmallID(id);
