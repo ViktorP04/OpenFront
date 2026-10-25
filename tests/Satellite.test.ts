@@ -99,6 +99,34 @@ it("respects disabled satellites, fog mode, and affordability", () => {
   expect(a.units(UnitType.Satellite)).toHaveLength(0);
 });
 
+it.each([UnitType.RadarStation, UnitType.Satellite] as const)(
+  "rejects %s purchase intents without fog and spends no gold or silo slots",
+  (type) => {
+    const silo = a.buildUnit(UnitType.MissileSilo, at(20), {});
+    a.conquer(at(80));
+    game.config().gameConfig().fogOfWar = false;
+    const target = type === UnitType.RadarStation ? at(80) : at(400);
+    const gold = a.gold();
+    expect(a.buildableUnits(target, [type])[0].canBuild).toBe(false);
+    game.addExecution(new ConstructionExecution(a, type, target));
+    executeTicks(game, 4);
+    expect(a.units(type)).toHaveLength(0);
+    expect(a.gold()).toBe(gold);
+    expect(silo.missileTimerQueue()).toHaveLength(0);
+  },
+);
+
+it("does not offer upgrades for an existing radar when fog is off", () => {
+  a.conquer(at(80));
+  const radar = a.buildUnit(UnitType.RadarStation, at(80), {});
+  expect(a.canUpgradeUnit(radar)).toBe(true);
+  game.config().gameConfig().fogOfWar = false;
+  expect(a.canUpgradeUnit(radar)).toBe(false);
+  const offer = a.buildableUnits(radar.tile(), [UnitType.RadarStation])[0];
+  expect(offer.canBuild).toBe(false);
+  expect(offer.canUpgrade).toBe(false);
+});
+
 it("keeps orbiting after losing the silo and resumes identically through map seams", () => {
   const silo = a.buildUnit(UnitType.MissileSilo, at(20), {});
   game.addExecution(new SatelliteExecution(a, at(120, 150)));

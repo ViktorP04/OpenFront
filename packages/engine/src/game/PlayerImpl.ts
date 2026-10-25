@@ -1457,6 +1457,11 @@ export class PlayerImpl implements Player {
     unitType: UnitType,
     knownCost: Gold | null = null,
   ): boolean {
+    if (
+      (unitType === UnitType.RadarStation || unitType === UnitType.Satellite) &&
+      !this.mg.config().fogOfWar()
+    )
+      return false;
     if (this.mg.config().isUnitDisabled(unitType)) {
       return false;
     }
@@ -1594,12 +1599,9 @@ export class PlayerImpl implements Player {
     targetTile: TileRef,
     validTiles: TileRef[] | null,
   ): TileRef | false {
-    if (unitType === UnitType.RadarStation && !this.mg.config().fogOfWar())
-      return false;
     switch (unitType) {
       case UnitType.Satellite: {
-        if (!this.mg.config().fogOfWar() || !this.mg.isValidRef(targetTile))
-          return false;
+        if (!this.mg.isValidRef(targetTile)) return false;
         const silos = this.units(UnitType.MissileSilo).filter(
           (silo) =>
             silo.isActive() &&

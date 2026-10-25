@@ -12,6 +12,24 @@ function makeMenu(): BuildMenu {
 
 const item = (unitType: UnitType) => ({ unitType, icon: "" }) as any;
 
+it("only offers radar stations and satellites in fog games", () => {
+  const menu = makeMenu();
+  let fog = false;
+  menu.game = {
+    config: () => ({ fogOfWar: () => fog, isUnitDisabled: () => false }),
+  } as never;
+  const offered = () =>
+    (menu as any)
+      .getBuildableUnits()
+      .flat()
+      .map((unit: any) => unit.unitType);
+  expect(offered()).not.toContain(UnitType.RadarStation);
+  expect(offered()).not.toContain(UnitType.Satellite);
+  fog = true;
+  expect(offered()).toContain(UnitType.RadarStation);
+  expect(offered()).toContain(UnitType.Satellite);
+});
+
 describe("BuildMenu.cost", () => {
   it("returns the buildable's cost for a matching unit type", () => {
     const menu = makeMenu();
