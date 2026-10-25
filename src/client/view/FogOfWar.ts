@@ -6,17 +6,33 @@ export {
 } from "@openfront/engine-lib/game/FogOfWarRules";
 export { FOG_BIT } from "../render/gl/utils/TileCodec";
 
+interface VisionSource {
+  pos: number;
+  radius: number;
+  wrap?: boolean;
+}
+
 /** Reusable local vision buffers; ship trails are layered over current coverage. */
 export class FogOfWar {
   readonly visible: Uint8Array;
-  readonly dirtyChunks = new Set<number>();
+  private readonly changedChunks = new Set<number>();
+  private sources = new Map<string, VisionSource>();
+  private previousSources = new Map<string, VisionSource>();
+
+  get dirtyChunks(): ReadonlySet<number> {
+    // Sources are added in two passes (current units, then historical trails).
+    // Only after both passes can an unmatched old source be called removed.
+    for (const source of this.previousSources.values()) {
+      this.markSourceChunks(this.changedChunks, source);
+    }
+    return this.changedChunks;
+  }
   readonly chunkSize = 64;
   readonly chunkColumns: number;
   private readonly territory: Uint8Array;
   private readonly friendlyTiles: Uint8Array;
   private readonly friendlyLookup = new Uint8Array(4096);
   private friendlyKey: string | undefined;
-  private readonly sourceChunks = new Set<number>();
   private readonly distances = new Uint8Array((64 + TERRITORY_VISION * 2) ** 2);
   private readonly queue: Int32Array;
   constructor(
@@ -33,17 +49,23 @@ export class FogOfWar {
   update(
     owners: Uint16Array,
     friendly: ReadonlySet<number>,
-    sources: Iterable<{ pos: number; radius: number; wrap?: boolean }>,
+    sources: Iterable<VisionSource>,
     changedTiles?: Iterable<number>,
   ): Uint8Array {
     const key = [...friendly].sort((a, b) => a - b).join(",");
-    this.dirtyChunks.clear();
-    for (const chunk of this.sourceChunks) this.dirtyChunks.add(chunk);
-    this.sourceChunks.clear();
+    this.changedChunks.clear();
+    this.previousSources = this.sources;
+    this.sources = new Map();
     if (key !== this.friendlyKey || changedTiles === undefined) {
       this.friendlyKey = key;
       this.rebuildTerritory(owners, friendly);
-      this.markChunks(this.dirtyChunks, 0, 0, this.width - 1, this.height - 1);
+      this.markChunks(
+        this.changedChunks,
+        0,
+        0,
+        this.width - 1,
+        this.height - 1,
+      );
     } else {
       const chunks = new Set<number>();
       for (const tile of changedTiles) {
@@ -62,7 +84,7 @@ export class FogOfWar {
       }
       for (const chunk of chunks) {
         this.rebuildChunk(owners, chunk);
-        this.dirtyChunks.add(chunk);
+        this.changedChunks.add(chunk);
       }
     }
     this.visible.set(this.territory);
@@ -177,34 +199,39 @@ export class FogOfWar {
     }
   }
 
-  addSources(
-    sources: Iterable<{ pos: number; radius: number; wrap?: boolean }>,
+  private markSourceChunks(
+    chunks: Set<number>,
+    { pos, radius, wrap }: VisionSource,
   ): void {
+    const xs = wrap ? [-this.width, 0, this.width] : [0];
+    const ys = wrap ? [-this.height, 0, this.height] : [0];
+    for (const ox of xs)
+      for (const oy of ys) {
+        const x = (pos % this.width) + ox,
+          y = Math.floor(pos / this.width) + oy;
+        this.markChunks(chunks, x - radius, y - radius, x + radius, y + radius);
+      }
+  }
+
+  addSources(sources: Iterable<VisionSource>): void {
     const { visible, width, height } = this;
     // Circular mobile/structure vision. Rasterize horizontal spans, avoiding
     // square roots per tile and keeping radar overlap inexpensive.
-    for (const { pos, radius, wrap } of sources) {
+    for (const source of sources) {
+      const { pos, radius, wrap } = source;
       if (radius <= 0) continue;
+      const key = `${pos}:${radius}:${wrap ? 1 : 0}`;
+      if (this.sources.has(key)) continue;
+      this.sources.set(key, { pos, radius, wrap });
+      if (!this.previousSources.delete(key)) {
+        this.markSourceChunks(this.changedChunks, source);
+      }
       const offsetsX = wrap ? [-width, 0, width] : [0];
       const offsetsY = wrap ? [-height, 0, height] : [0];
       for (const ox of offsetsX)
         for (const oy of offsetsY) {
           const cx = (pos % width) + ox,
             cy = Math.floor(pos / width) + oy;
-          this.markChunks(
-            this.sourceChunks,
-            cx - radius,
-            cy - radius,
-            cx + radius,
-            cy + radius,
-          );
-          this.markChunks(
-            this.dirtyChunks,
-            cx - radius,
-            cy - radius,
-            cx + radius,
-            cy + radius,
-          );
           for (
             let y = Math.max(0, cy - radius);
             y <= Math.min(height - 1, cy + radius);

@@ -120,9 +120,8 @@ export class GameView implements GameLike {
   private readonly fogTerritoryChanges = new Set<number>();
   private readonly fogPendingTiles = new Set<number>();
   private readonly fogMaskChunks = new Set<number>();
-  private fogTrailMin = Infinity;
-  private fogTrailMax = -1;
-  private fogRailDirty = false;
+  private readonly fogTrailTiles = new Set<number>();
+  private readonly fogRailTiles = new Set<number>();
   private fogStructuresDirty = false;
   private fogStructureIDs = new Set<number>();
   /** True until first populateFrame() — controls full-vs-delta tile upload. */
@@ -495,17 +494,10 @@ export class GameView implements GameLike {
 
     this.populateFrame(gu);
     if (this.renderedFog) {
-      if (this._frame.trailDirtyRowMax >= 0) {
-        this.fogTrailMin = Math.min(
-          this.fogTrailMin,
-          this._frame.trailDirtyRowMin,
-        );
-        this.fogTrailMax = Math.max(
-          this.fogTrailMax,
-          this._frame.trailDirtyRowMax,
-        );
-      }
-      this.fogRailDirty ||= this._frame.railroadDirty;
+      for (const tile of this.trailManager.changedTiles)
+        this.fogTrailTiles.add(tile);
+      for (const tile of this.railroadCache.changedTiles)
+        this.fogRailTiles.add(tile);
       this.fogStructuresDirty ||= this._frame.structuresDirty;
     }
   }
@@ -793,20 +785,12 @@ export class GameView implements GameLike {
           }
       }
       for (const tile of this.fogPendingTiles) maskTile(tile);
-      const rawMin = Math.min(this.fogTrailMin, frame.trailDirtyRowMin);
-      const rawMax = Math.max(this.fogTrailMax, frame.trailDirtyRowMax);
-      if (rawMax >= 0) {
-        for (let tile = rawMin * width; tile < (rawMax + 1) * width; tile++)
-          maskTrail(tile);
-      }
-      if (this.fogRailDirty || frame.railroadDirty) {
-        for (let tile = 0; tile < vision.length; tile++) maskRail(tile);
-      }
+      for (const tile of this.fogTrailTiles) maskTrail(tile);
+      for (const tile of this.fogRailTiles) maskRail(tile);
       this.fogPendingTiles.clear();
       this.fogMaskChunks.clear();
-      this.fogTrailMin = Infinity;
-      this.fogTrailMax = -1;
-      this.fogRailDirty = false;
+      this.fogTrailTiles.clear();
+      this.fogRailTiles.clear();
       const structureIDs = new Set<number>();
       for (const [id, unit] of result.units) {
         if (STRUCTURE_TYPES.has(unit.unitType)) structureIDs.add(id);

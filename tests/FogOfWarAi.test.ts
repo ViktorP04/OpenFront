@@ -409,3 +409,26 @@ it("leaves existing voyages and ships in combat or repair retreat alone", () => 
   executeTicks(game, 2);
   expect(fighting.warshipState().patrolTile).toBe(at(120));
 });
+
+it("updates indexed territory vision immediately across all ownership write paths", () => {
+  const query = at(105, 60),
+    owned = at(140, 60);
+  // Warm the shared index before any ownership change.
+  expect(hasTileVision(game, ai, query)).toBe(false);
+  ai.conquer(owned);
+  expect(hasTileVision(game, ai, at(120, 60))).toBe(true);
+  enemy.conquer(owned);
+  expect(hasTileVision(game, ai, at(120, 60))).toBe(false);
+  game.setOwnerID(owned, ai.smallID());
+  expect(hasTileVision(game, ai, at(120, 60))).toBe(true);
+  game.updateTile(owned, enemy.smallID() | (game.terrainByte(owned) << 16));
+  expect(hasTileVision(game, ai, at(120, 60))).toBe(false);
+  ai.conquer(owned);
+  ai.relinquish(owned);
+  expect(hasTileVision(game, ai, at(120, 60))).toBe(false);
+  ally.conquer(owned);
+  ai.createAllianceRequest(ally)!.accept();
+  expect(hasTileVision(game, ai, at(120, 60))).toBe(true);
+  ai.breakAlliance(ai.allianceWith(ally)!);
+  expect(hasTileVision(game, ai, at(120, 60))).toBe(false);
+});

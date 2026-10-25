@@ -36,6 +36,7 @@ interface UnitTrail {
 
 export class TrailManager {
   private readonly trailState: Uint16Array;
+  readonly changedTiles = new Set<number>();
   // Number of live trails claiming each tile — a texel is cleared only when
   // its count drops to zero.
   private readonly trailCounts: Uint16Array;
@@ -63,11 +64,13 @@ export class TrailManager {
   }
 
   clearDirtyRows(): void {
+    this.changedTiles.clear();
     this._dirtyRowMin = Infinity;
     this._dirtyRowMax = -1;
   }
 
   reset(): void {
+    this.changedTiles.clear();
     this.unitTrails.clear();
     this.trailState.fill(0);
     this.trailCounts.fill(0);
@@ -129,6 +132,7 @@ export class TrailManager {
   }
 
   private stamp(ref: number, value: number): void {
+    if (this.trailState[ref] !== value) this.changedTiles.add(ref);
     this.trailState[ref] = value;
     const row = (ref / this.mapW) | 0;
     if (row < this._dirtyRowMin) this._dirtyRowMin = row;

@@ -480,3 +480,83 @@ it("clears and restores masked trails, rails, and structures when radar coverage
     expect(frame.structuresDirty).toBe(true);
   }
 });
+
+it("leaves stationary duplicate sources clean and invalidates expired or moved coverage", () => {
+  const fog = new FogOfWar(400, 200);
+  const owners = new Uint16Array(80000);
+  const friendly = new Set([1]);
+  const source = { pos: 80 * 400 + 80, radius: 10 };
+  const trail = { pos: 80 * 400 + 300, radius: 10 };
+  fog.update(owners, friendly, [source], []);
+  fog.addSources([trail]);
+  expect(fog.visible[trail.pos]).toBe(1);
+  fog.update(owners, friendly, [source, source], []);
+  fog.addSources([trail, source, trail]);
+  expect(fog.dirtyChunks.size).toBe(0);
+  expect(fog.visible[source.pos]).toBe(1);
+  expect(fog.visible[trail.pos]).toBe(1);
+  fog.update(owners, friendly, [source], []);
+  fog.addSources([{ ...trail, pos: 80 * 400 + 200 }]);
+  expect(fog.visible[trail.pos]).toBe(0);
+  expect(fog.visible[80 * 400 + 200]).toBe(1);
+  expect(fog.dirtyChunks.has(1 * fog.chunkColumns + 4)).toBe(true);
+  expect(fog.dirtyChunks.has(1 * fog.chunkColumns + 3)).toBe(true);
+  expect(fog.dirtyChunks.has(1 * fog.chunkColumns + 1)).toBe(false);
+});
+
+it("retains sparse trail and rail edits across skipped frames with unchanged visibility", () => {
+  const game = fogGame();
+  game.frameData();
+  const tile = 20 * 400 + 100;
+  const build = makeEmptyGu(2);
+  build.updates[GameUpdateType.Unit] = [
+    makeUnitUpdate({
+      id: 99,
+      ownerID: 2,
+      unitType: UnitType.TransportShip,
+      pos: tile,
+    }),
+  ];
+  build.updates[GameUpdateType.RailroadSnapEvent] = [
+    {
+      type: GameUpdateType.RailroadSnapEvent,
+      originalId: 100,
+      newId1: 101,
+      newId2: 102,
+      tiles1: [tile, tile + 1],
+      tiles2: [],
+    },
+  ];
+  game.update(build);
+  game.isTileVisible(tile);
+  game.update(makeEmptyGu(3));
+  let frame = game.frameData();
+  expect(frame.trailState[tile]).toBe(2);
+  expect(frame.railroadState[tile]).toBeGreaterThan(0);
+  expect(frame.trailDirtyRowMin).toBe(20);
+  expect(frame.trailDirtyRowMax).toBe(20);
+  expect(frame.railroadDirty).toBe(true);
+  const remove = makeEmptyGu(4);
+  remove.updates[GameUpdateType.Unit] = [
+    makeUnitUpdate({
+      id: 99,
+      ownerID: 2,
+      unitType: UnitType.TransportShip,
+      pos: tile,
+      isActive: false,
+      markedForDeletion: 1,
+    }),
+  ];
+  remove.updates[GameUpdateType.RailroadDestructionEvent] = [
+    { type: GameUpdateType.RailroadDestructionEvent, id: 101 },
+  ];
+  game.update(remove);
+  game.update(makeEmptyGu(5));
+  game.update(makeEmptyGu(6));
+  frame = game.frameData();
+  expect(frame.trailState[tile]).toBe(0);
+  expect(frame.railroadState[tile]).toBe(0);
+  expect(frame.trailDirtyRowMin).toBe(20);
+  expect(frame.trailDirtyRowMax).toBe(20);
+  expect(frame.railroadDirty).toBe(true);
+});

@@ -77,3 +77,57 @@ invalidation for ownership and alliance changes. Client work can also grow with
 many overlapping ship trails/radars; this early-match scenario ends with only
 16 units in the mirrored view. Profile a late naval match and capture a browser
 Performance trace on the affected device before choosing further optimizations.
+
+
+## Second pass: 2026-10-26
+
+The second pass compares commit `81f5188b3` against the new changes, using the
+same World/default bots/Medium seed and profiler for 1,800 game ticks after
+spawn (three minutes of simulated play). Both runs end at tick 2002 with 78
+living players and 289 units in the client mirror. The longer run exposed
+railroad construction and transport/nuke trail changes absent from the original
+600-tick scenario.
+
+Changes:
+
+- AI territory queries share a lazily built 16 x 16 spatial ownership index.
+  Cells without a friendly owner skip individual tile scans. Intersecting
+  cells still use the exact twenty-tile Manhattan diamond. The index holds
+  ownership counts, not visibility or alliance results, and updates on conquest,
+  relinquishment, direct owner assignment, and packed tile updates. No index
+  data enters snapshots or simulation hashes; restored games build it on demand.
+- Trail and railroad caches report exact changed tile refs. The fog renderer
+  no longer scans a whole trail row band or railroad texture for a few edits.
+  Pending refs accumulate across skipped frames, including removals.
+- Unchanged vision circles no longer invalidate render chunks every tick.
+  Duplicate circles are rasterized once per update. Added, removed, moved,
+  upgraded, wrapped, and expired sources still invalidate their coverage.
+
+| Measurement (ms/tick) | Before second pass | After second pass |
+| --- | ---: | ---: |
+| Main-thread burst, mean | 5.21 | 2.02 |
+| Main-thread burst, p95 | 10.4 | 3.73 |
+| Main-thread burst, p99 | 14.0 | 5.08 |
+| Main-thread burst, maximum | 38.9 | 6.36 |
+| Main-thread bursts over 16.7 ms | 5 / 1,800 | 0 / 1,800 |
+| Simulation, mean | 14.8 | 9.97 |
+| Simulation, p99 | 212 | 82.2 |
+| Simulation, maximum | 388 | 249 |
+
+This is about 61% less average main-thread work and 33% less average simulation
+work relative to the first pass, on this machine. Final simulation hashes match
+(`27626989507481190` at tick 2000), as do final view hashes (`1b91d210`) and update
+payload totals. The profiler was enabled in both runs; timings vary with host
+load. Browser/GPU/DOM limitations described above still apply. This is a longer
+natural match, not an endgame stress test with hundreds of satellites or ships.
+
+Reproduce with the command above and `--ticks 1800`. Regression tests include
+3,000 indexed queries compared against brute-force visibility through randomized
+ownership and diplomacy changes, immediate same-tick ownership/alliance updates,
+stationary/duplicate circles, and sparse rail/trail additions and removals across
+skipped frames.
+
+Some worst-case simulation ticks still exceed 100 ms. The next useful targets
+are ship-trail point queries and AI naval planning, guided by a fresh profile
+of the affected match. Actual browser traces remain necessary to diagnose GPU,
+HUD, network, and device-specific pauses.

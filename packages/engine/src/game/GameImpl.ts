@@ -100,6 +100,7 @@ import {
 import { Railroad } from "./Railroad";
 import { Stats } from "./Stats";
 import { StatsImpl, StatsSnapshot } from "./StatsImpl";
+import { updateTerritoryVisionOwner } from "./TerritoryVisionIndex";
 import { WaterManager, WaterManagerSnapshot } from "./WaterManager";
 
 export function createGame(
@@ -902,8 +903,7 @@ export class GameImpl implements Game {
       previousOwner._tiles.delete(tile);
       previousOwner._borderTiles.delete(tile);
     }
-    this._territoryVersion++;
-    this._map.setOwnerID(tile, owner.smallID());
+    this.setOwnerID(tile, owner.smallID());
     owner._tiles.add(tile);
     owner._lastTileChange = this._ticks;
     owner._tileChangeVersion++;
@@ -926,8 +926,7 @@ export class GameImpl implements Game {
     previousOwner._tiles.delete(tile);
     previousOwner._borderTiles.delete(tile);
 
-    this._territoryVersion++;
-    this._map.setOwnerID(tile, 0);
+    this.setOwnerID(tile, 0);
     this.updateBorders(tile);
     this.recordTileUpdate(tile);
   }
@@ -1405,7 +1404,9 @@ export class GameImpl implements Game {
   }
   setOwnerID(ref: TileRef, playerId: number): void {
     this._territoryVersion++;
-    return this._map.setOwnerID(ref, playerId);
+    const previous = this._map.ownerID(ref);
+    this._map.setOwnerID(ref, playerId);
+    updateTerritoryVisionOwner(this, ref, previous, playerId);
   }
   hasFallout(ref: TileRef): boolean {
     return this._map.hasFallout(ref);
@@ -1467,7 +1468,10 @@ export class GameImpl implements Game {
     return this._map.tileStateBuffer();
   }
   updateTile(tile: TileRef, state: number): boolean {
-    return this._map.updateTile(tile, state);
+    const previous = this._map.ownerID(tile);
+    const terrainChanged = this._map.updateTile(tile, state);
+    updateTerritoryVisionOwner(this, tile, previous, this._map.ownerID(tile));
+    return terrainChanged;
   }
   numTilesWithFallout(): number {
     return this._map.numTilesWithFallout();

@@ -125,6 +125,7 @@ export class RailroadCache {
 
   /** Per-tile railroad state (0=none, 1-6 = RailType+1). Ready for GPU upload. */
   readonly railroadState: Uint8Array;
+  readonly changedTiles = new Set<number>();
 
   /** True if railroadState changed this tick. */
   railroadDirty = false;
@@ -142,6 +143,7 @@ export class RailroadCache {
    * Event order matches the upstream game client: Construction → Snap → Destruction.
    */
   apply(gu: GameUpdateViewData): void {
+    this.changedTiles.clear();
     const constructs = (gu.updates[GameUpdateType.RailroadConstructionEvent] ??
       []) as RailroadConstructionUpdate[];
     for (const evt of constructs) this.addRailroad(evt.id, evt.tiles, false);
@@ -208,6 +210,12 @@ export class RailroadCache {
   // Private
   // -------------------------------------------------------------------------
 
+  private stamp(tile: number, value: number): void {
+    if (this.railroadState[tile] === value) return;
+    this.railroadState[tile] = value;
+    this.changedTiles.add(tile);
+  }
+
   private addRailroad(id: number, tileRefs: number[], complete: boolean): void {
     const tiles = computeRailTiles(tileRefs, this.mapW);
     const anim: RailroadAnim = {
@@ -224,7 +232,7 @@ export class RailroadCache {
     }
 
     if (complete) {
-      for (const rt of tiles) this.railroadState[rt.ref] = rt.type + 1;
+      for (const rt of tiles) this.stamp(rt.ref, rt.type + 1);
       this.railroadDirty = true;
     }
   }
@@ -238,7 +246,7 @@ export class RailroadCache {
       const count = (this.tileRefCount.get(rt.ref) ?? 1) - 1;
       if (count <= 0) {
         this.tileRefCount.delete(rt.ref);
-        this.railroadState[rt.ref] = 0;
+        this.stamp(rt.ref, 0);
       } else {
         this.tileRefCount.set(rt.ref, count);
       }
@@ -255,7 +263,7 @@ export class RailroadCache {
       if (anim.tailIndex - anim.headIndex <= 2 * RAIL_INCREMENT) {
         for (let i = anim.headIndex; i < anim.tailIndex; i++) {
           const t = anim.tiles[i]!;
-          this.railroadState[t.ref] = t.type + 1;
+          this.stamp(t.ref, t.type + 1);
           this.revealedRailTiles.push(t.ref);
         }
         anim.headIndex = anim.tailIndex;
@@ -264,12 +272,12 @@ export class RailroadCache {
       } else {
         for (let i = anim.headIndex; i < anim.headIndex + RAIL_INCREMENT; i++) {
           const t = anim.tiles[i]!;
-          this.railroadState[t.ref] = t.type + 1;
+          this.stamp(t.ref, t.type + 1);
           this.revealedRailTiles.push(t.ref);
         }
         for (let i = anim.tailIndex - RAIL_INCREMENT; i < anim.tailIndex; i++) {
           const t = anim.tiles[i]!;
-          this.railroadState[t.ref] = t.type + 1;
+          this.stamp(t.ref, t.type + 1);
           this.revealedRailTiles.push(t.ref);
         }
         anim.headIndex += RAIL_INCREMENT;

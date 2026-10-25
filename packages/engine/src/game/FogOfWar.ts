@@ -9,6 +9,7 @@ import {
   SATELLITE_VISION,
 } from "@openfront/engine-lib/game/SatelliteOrbit";
 import { Game, Player } from "./Game";
+import { territoryVisionIndex } from "./TerritoryVisionIndex";
 
 const LOCAL_SOURCES = [
   ...Structures.types.filter((type) => type !== UnitType.RadarStation),
@@ -59,15 +60,9 @@ export function hasTileVision(
     })
   )
     return true;
-  // A negative query can inspect 841 tiles. Read packed ownership directly,
-  // and resolve diplomacy once per encountered owner rather than per tile.
-  // Keep this cache local: alliances and ownership may change within a tick.
-  const owners = game.tileStateBuffer();
   const viewerID = viewer.smallID();
   const relationships = new Map<number, boolean>();
-  const friendlyTerritory = (ref: TileRef) => {
-    const id = owners[ref] & 0xfff;
-    if (id === 0) return false;
+  const friendlyOwner = (id: number) => {
     if (id === viewerID) return true;
     let value = relationships.get(id);
     if (value === undefined) {
@@ -77,19 +72,10 @@ export function hasTileVision(
     }
     return value;
   };
-  if (friendlyTerritory(tile)) return true;
-  const width = game.width(),
-    height = game.height();
-  const cx = game.x(tile),
-    cy = game.y(tile);
-  for (let dy = -TERRITORY_VISION; dy <= TERRITORY_VISION; dy++) {
-    const y = cy + dy;
-    if (y < 0 || y >= height) continue;
-    const dx = TERRITORY_VISION - Math.abs(dy);
-    for (let x = Math.max(0, cx - dx); x <= Math.min(width - 1, cx + dx); x++) {
-      if (friendlyTerritory(y * width + x)) return true;
-    }
-  }
+  if (
+    territoryVisionIndex(game).hasVision(tile, TERRITORY_VISION, friendlyOwner)
+  )
+    return true;
   if (
     game.anyUnitNearby(tile, LOCAL_RANGE, LOCAL_SOURCES, (unit) => {
       const radius = unitVisionRadius(unit.type(), unit.level());
