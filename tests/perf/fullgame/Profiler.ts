@@ -1,5 +1,6 @@
 import { Execution, Game } from "@openfront/engine/game/Game";
 import { Session } from "node:inspector";
+import { fileURLToPath } from "node:url";
 
 // ── Per-tick wall-time statistics ──
 
@@ -228,9 +229,13 @@ export function summarizeCpuProfile(
     if (selfUs === 0) continue;
     const { functionName, url, lineNumber } = node.callFrame;
     const name = functionName || "(anonymous)";
-    let location = url.replace(/^file:\/\//, "");
-    if (location.startsWith(projectRoot)) {
-      location = location.slice(projectRoot.length + 1);
+    let location = (url.startsWith("file:") ? fileURLToPath(url) : url).replace(
+      /\\/g,
+      "/",
+    );
+    const root = projectRoot.replace(/\\/g, "/");
+    if (location.startsWith(root + "/")) {
+      location = location.slice(root.length + 1);
     }
     // tsx/esbuild collapses line info to 0; only show real line numbers.
     if (location !== "" && lineNumber > 0) {

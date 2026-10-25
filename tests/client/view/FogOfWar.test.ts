@@ -362,3 +362,121 @@ it("extends live shared vision when a radar is upgraded", () => {
   expect(game.frameData().units.has(12)).toBe(true);
   expect(unitVisionRadius(UnitType.RadarStation, 3)).toBe(225);
 });
+
+it("matches a full visibility rebuild after incremental border changes and moving sources", () => {
+  const width = 193,
+    height = 137;
+  const owners = new Uint16Array(width * height);
+  const incremental = new FogOfWar(width, height);
+  const full = new FogOfWar(width, height);
+  let seed = 12345;
+  const random = () => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return seed;
+  };
+  for (let i = 0; i < 90; i++)
+    owners[random() % owners.length] = 1 + (random() % 3);
+  for (let tick = 0; tick < 80; tick++) {
+    const before = incremental.visible.slice();
+    const changed = new Set<number>();
+    for (let i = 0; i < 20; i++) {
+      const tile = random() % owners.length;
+      owners[tile] = random() % 4;
+      changed.add(tile);
+    }
+    const friendly = new Set(tick < 40 ? [1] : [1, 2]);
+    const sources = [
+      { pos: random() % owners.length, radius: 17, wrap: tick % 2 === 0 },
+    ];
+    const trails = [{ pos: random() % owners.length, radius: 9 }];
+    incremental.update(owners, friendly, sources, changed);
+    full.update(owners, friendly, sources);
+    incremental.addSources(trails);
+    full.addSources(trails);
+    expect(
+      incremental.visible.every((value, tile) => value === full.visible[tile]),
+    ).toBe(true);
+    let uncoveredChanges = 0;
+    for (let tile = 0; tile < owners.length; tile++) {
+      if (!!before[tile] === !!incremental.visible[tile]) continue;
+      const chunk =
+        Math.floor(Math.floor(tile / width) / incremental.chunkSize) *
+          incremental.chunkColumns +
+        Math.floor((tile % width) / incremental.chunkSize);
+      if (!incremental.dirtyChunks.has(chunk)) uncoveredChanges++;
+    }
+    expect(uncoveredChanges).toBe(0);
+  }
+});
+
+it("avoids unchanged texture uploads and retains tile changes across skipped frames", () => {
+  const game = fogGame();
+  game.frameData();
+  const tile = 20 * 400 + 100;
+  const second = makeEmptyGu(2);
+  second.packedTileUpdates = new Uint32Array([tile, 1]);
+  game.update(second);
+  // Input may evaluate vision without rendering this tick.
+  game.isTileVisible(tile);
+  game.update(makeEmptyGu(3));
+  const frame = game.frameData();
+  expect(frame.tileState[tile]).toBe(1);
+  expect(frame.changedTiles).toContain(tile);
+  expect(frame.trailDirtyRowMax).toBe(-1);
+  expect(frame.railroadDirty).toBe(false);
+  game.update(makeEmptyGu(4));
+  expect(game.frameData().changedTiles).toEqual([]);
+  expect(game.frameData().trailDirtyRowMax).toBe(-1);
+  expect(game.frameData().railroadDirty).toBe(false);
+  expect(game.frameData().structuresDirty).toBe(false);
+});
+
+it("clears and restores masked trails, rails, and structures when radar coverage changes", () => {
+  const game = fogGame();
+  const tile = 20 * 400 + 100;
+  const ships = makeEmptyGu(2);
+  ships.updates[GameUpdateType.Unit] = [
+    makeUnitUpdate({
+      id: 99,
+      ownerID: 2,
+      unitType: UnitType.TransportShip,
+      pos: tile,
+    }),
+  ];
+  ships.updates[GameUpdateType.RailroadSnapEvent] = [
+    {
+      type: GameUpdateType.RailroadSnapEvent,
+      originalId: 100,
+      newId1: 101,
+      newId2: 102,
+      tiles1: [tile, tile + 1],
+      tiles2: [],
+    },
+  ];
+  game.update(ships);
+  expect(game.frameData().trailState[tile]).toBe(2);
+  expect(game.frameData().railroadState[tile]).toBeGreaterThan(0);
+  for (const [tick, ownerID] of [
+    [3, 2],
+    [4, 1],
+  ]) {
+    const gu = makeEmptyGu(tick);
+    gu.updates[GameUpdateType.Unit] = [
+      makeUnitUpdate({
+        id: 10,
+        ownerID,
+        unitType: UnitType.RadarStation,
+        pos: 20 * 400 + 20,
+      }),
+    ];
+    game.update(gu);
+    const frame = game.frameData();
+    expect(frame.trailState[tile]).toBe(ownerID === 1 ? 2 : 0);
+    expect(frame.railroadState[tile] !== 0).toBe(ownerID === 1);
+    expect(frame.railroadDirty).toBe(true);
+    expect(frame.trailDirtyRowMin).toBeLessThanOrEqual(20);
+    expect(frame.trailDirtyRowMax).toBeGreaterThanOrEqual(20);
+    expect(frame.units.has(11)).toBe(ownerID === 1);
+    expect(frame.structuresDirty).toBe(true);
+  }
+});

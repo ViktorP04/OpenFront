@@ -117,6 +117,14 @@ export class GameView implements GameLike {
   private fogTiles?: Uint16Array;
   private fogTrails?: Uint16Array;
   private fogRails?: Uint8Array;
+  private readonly fogTerritoryChanges = new Set<number>();
+  private readonly fogPendingTiles = new Set<number>();
+  private readonly fogMaskChunks = new Set<number>();
+  private fogTrailMin = Infinity;
+  private fogTrailMax = -1;
+  private fogRailDirty = false;
+  private fogStructuresDirty = false;
+  private fogStructureIDs = new Set<number>();
   /** True until first populateFrame() — controls full-vs-delta tile upload. */
   private _firstPopulate = true;
 
@@ -264,6 +272,10 @@ export class GameView implements GameLike {
       const state = packed[i + 1];
       const terrainChanged = this.updateTile(tile, state);
       this.updatedTiles.push(tile);
+      if (this.renderedFog) {
+        this.fogTerritoryChanges.add(tile);
+        this.fogPendingTiles.add(tile);
+      }
       if (terrainChanged) {
         this.updatedTerrainTiles.push(tile);
       }
@@ -482,6 +494,20 @@ export class GameView implements GameLike {
     }
 
     this.populateFrame(gu);
+    if (this.renderedFog) {
+      if (this._frame.trailDirtyRowMax >= 0) {
+        this.fogTrailMin = Math.min(
+          this.fogTrailMin,
+          this._frame.trailDirtyRowMin,
+        );
+        this.fogTrailMax = Math.max(
+          this.fogTrailMax,
+          this._frame.trailDirtyRowMax,
+        );
+      }
+      this.fogRailDirty ||= this._frame.railroadDirty;
+      this.fogStructuresDirty ||= this._frame.structuresDirty;
+    }
   }
 
   // ── FrameData population ────────────────────────────────────────────────
@@ -682,10 +708,17 @@ export class GameView implements GameLike {
           radius: unitVisionRadius(u.type(), u.level()),
           wrap: u.type() === UnitType.Satellite,
         }));
-      this.fog.update(this._map.tileStateBuffer(), friendly, sources);
+      this.fog.update(
+        this._map.tileStateBuffer(),
+        friendly,
+        sources,
+        this.renderedFog ? this.fogTerritoryChanges : undefined,
+      );
+      this.fogTerritoryChanges.clear();
       this.fog.addSources(
         this.shipVisionTrails?.sources(this.ticks(), friendly) ?? [],
       );
+      for (const chunk of this.fog.dirtyChunks) this.fogMaskChunks.add(chunk);
       this.visionTick = this.ticks();
     }
     return this.fog.visible;
@@ -718,13 +751,74 @@ export class GameView implements GameLike {
       this.fogTrails ??= new Uint16Array(frame.trailState.length);
       this.fogRails ??= new Uint8Array(frame.railroadState.length);
       const changed: number[] = [];
-      for (let tile = 0; tile < vision.length; tile++) {
+      let trailMin = Infinity,
+        trailMax = -1,
+        railDirty = first;
+      const width = this.width();
+      const maskTrail = (tile: number) => {
+        const value = vision[tile] ? frame.trailState[tile] : 0;
+        if (value === this.fogTrails![tile]) return;
+        this.fogTrails![tile] = value;
+        const row = Math.floor(tile / width);
+        trailMin = Math.min(trailMin, row);
+        trailMax = Math.max(trailMax, row);
+      };
+      const maskRail = (tile: number) => {
+        const value = vision[tile] ? frame.railroadState[tile] : 0;
+        if (value === this.fogRails![tile]) return;
+        this.fogRails![tile] = value;
+        railDirty = true;
+      };
+      const maskTile = (tile: number) => {
         const state = vision[tile] ? frame.tileState[tile] : FOG_BIT;
-        if (state !== this.fogTiles[tile]) changed.push(tile);
-        this.fogTiles[tile] = state;
-        this.fogTrails[tile] = vision[tile] ? frame.trailState[tile] : 0;
-        this.fogRails[tile] = vision[tile] ? frame.railroadState[tile] : 0;
+        if (state !== this.fogTiles![tile]) {
+          if (!first) changed.push(tile);
+          this.fogTiles![tile] = state;
+        }
+      };
+      // Visibility changes only affect these chunks. Keep changes queued until
+      // rendering, since input can query vision between skipped render ticks.
+      const fog = this.fog!;
+      for (const chunk of this.fogMaskChunks) {
+        const x0 = (chunk % fog.chunkColumns) * fog.chunkSize;
+        const y0 = Math.floor(chunk / fog.chunkColumns) * fog.chunkSize;
+        const x1 = Math.min(width, x0 + fog.chunkSize);
+        const y1 = Math.min(this.height(), y0 + fog.chunkSize);
+        for (let y = y0; y < y1; y++)
+          for (let x = x0; x < x1; x++) {
+            const tile = y * width + x;
+            maskTile(tile);
+            maskTrail(tile);
+            maskRail(tile);
+          }
       }
+      for (const tile of this.fogPendingTiles) maskTile(tile);
+      const rawMin = Math.min(this.fogTrailMin, frame.trailDirtyRowMin);
+      const rawMax = Math.max(this.fogTrailMax, frame.trailDirtyRowMax);
+      if (rawMax >= 0) {
+        for (let tile = rawMin * width; tile < (rawMax + 1) * width; tile++)
+          maskTrail(tile);
+      }
+      if (this.fogRailDirty || frame.railroadDirty) {
+        for (let tile = 0; tile < vision.length; tile++) maskRail(tile);
+      }
+      this.fogPendingTiles.clear();
+      this.fogMaskChunks.clear();
+      this.fogTrailMin = Infinity;
+      this.fogTrailMax = -1;
+      this.fogRailDirty = false;
+      const structureIDs = new Set<number>();
+      for (const [id, unit] of result.units) {
+        if (STRUCTURE_TYPES.has(unit.unitType)) structureIDs.add(id);
+      }
+      const structuresDirty =
+        first ||
+        frame.structuresDirty ||
+        this.fogStructuresDirty ||
+        structureIDs.size !== this.fogStructureIDs.size ||
+        [...structureIDs].some((id) => !this.fogStructureIDs.has(id));
+      this.fogStructureIDs = structureIDs;
+      this.fogStructuresDirty = false;
       const at = (x: number, y: number) =>
         this.isValidCoord(Math.floor(x), Math.floor(y)) &&
         vision[this.ref(Math.floor(x), Math.floor(y))] !== 0;
@@ -734,13 +828,13 @@ export class GameView implements GameLike {
         trailState: this.fogTrails,
         railroadState: this.fogRails,
         changedTiles: first ? null : changed,
-        trailDirtyRowMin: 0,
-        trailDirtyRowMax: this.height() - 1,
-        railroadDirty: true,
+        trailDirtyRowMin: Number.isFinite(trailMin) ? trailMin : 0,
+        trailDirtyRowMax: trailMax,
+        railroadDirty: railDirty,
         revealedRailTiles: frame.revealedRailTiles.filter(
           (t) => vision[t] !== 0,
         ),
-        structuresDirty: true,
+        structuresDirty,
         names: new Map(
           [...frame.names].filter(([, name]) => at(name.x, name.y)),
         ),

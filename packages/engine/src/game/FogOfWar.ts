@@ -59,24 +59,35 @@ export function hasTileVision(
     })
   )
     return true;
+  // A negative query can inspect 841 tiles. Read packed ownership directly,
+  // and resolve diplomacy once per encountered owner rather than per tile.
+  // Keep this cache local: alliances and ownership may change within a tick.
+  const owners = game.tileStateBuffer();
+  const viewerID = viewer.smallID();
+  const relationships = new Map<number, boolean>();
   const friendlyTerritory = (ref: TileRef) => {
-    if (!game.hasOwner(ref)) return false;
-    const owner = game.owner(ref);
-    return owner.isPlayer() && friendly(owner);
+    const id = owners[ref] & 0xfff;
+    if (id === 0) return false;
+    if (id === viewerID) return true;
+    let value = relationships.get(id);
+    if (value === undefined) {
+      const owner = game.playerBySmallID(id);
+      value = owner.isPlayer() && friendly(owner);
+      relationships.set(id, value);
+    }
+    return value;
   };
   if (friendlyTerritory(tile)) return true;
+  const width = game.width(),
+    height = game.height();
   const cx = game.x(tile),
     cy = game.y(tile);
   for (let dy = -TERRITORY_VISION; dy <= TERRITORY_VISION; dy++) {
     const y = cy + dy;
-    if (y < 0 || y >= game.height()) continue;
+    if (y < 0 || y >= height) continue;
     const dx = TERRITORY_VISION - Math.abs(dy);
-    for (
-      let x = Math.max(0, cx - dx);
-      x <= Math.min(game.width() - 1, cx + dx);
-      x++
-    ) {
-      if (friendlyTerritory(game.ref(x, y))) return true;
+    for (let x = Math.max(0, cx - dx); x <= Math.min(width - 1, cx + dx); x++) {
+      if (friendlyTerritory(y * width + x)) return true;
     }
   }
   if (

@@ -73,6 +73,8 @@ const FRAME_BUDGET_MS = 16.7;
 // ── CLI ──
 
 interface Options {
+  fog: boolean;
+  observe: boolean;
   map: GameMapType;
   ticks: number;
   bots: number;
@@ -97,6 +99,8 @@ function resolveMap(name: string): GameMapType {
 
 function parseArgs(argv: string[]): Options {
   const opts: Options = {
+    fog: false,
+    observe: false,
     map: GameMapType.World,
     ticks: 1800,
     bots: 400,
@@ -113,6 +117,13 @@ function parseArgs(argv: string[]): Options {
       return v;
     };
     switch (arg) {
+      case "--fog":
+        opts.fog = true;
+        opts.observe = true;
+        break;
+      case "--observe":
+        opts.observe = true;
+        break;
       case "--map":
         opts.map = resolveMap(next());
         break;
@@ -168,6 +179,11 @@ function createGlStub() {
     setPlayerSpawn: noop("setPlayerSpawn"),
     setLocalPlayerID: noop("setLocalPlayerID"),
     setLocalRailColor: noop("setLocalRailColor"),
+    updateSmallPlayerGlow: noop("updateSmallPlayerGlow"),
+    updatePlayerCosmetics: noop("updatePlayerCosmetics"),
+    updateEffectPalette: noop("updateEffectPalette"),
+    markLayerTilesDestroyed: noop("markLayerTilesDestroyed"),
+    refreshNames: noop("refreshNames"),
     updateSpawnOverlay: noop("updateSpawnOverlay"),
     initSkinAtlas: noop("initSkinAtlas"),
     applyTerrainRects: (rects: unknown[]) =>
@@ -178,15 +194,23 @@ function createGlStub() {
       bump("uploadLiveDelta");
       changedTilesSeen += changed.length;
     },
-    uploadLiveTrailDelta: noop("uploadLiveTrailDelta"),
+    uploadLiveTrailDelta: (_data: Uint16Array, min: number, max: number) => {
+      bump("uploadLiveTrailDelta");
+      // Count rows independently of map dimensions.
+      bump("trailUploadRows", max - min + 1);
+    },
     applyFullTiles: noop("applyFullTiles"),
     applyDelta: noop("applyDelta"),
-    uploadRailroadState: noop("uploadRailroadState"),
+    uploadRailroadState: (data: Uint8Array) => {
+      bump("uploadRailroadState");
+      bump("railroadUploadBytes", data.byteLength);
+    },
     applyRailroadDust: noop("applyRailroadDust"),
     updateUnits: (units: ReadonlyMap<number, unknown>) => {
       bump("updateUnits");
       unitsSeen += units.size;
     },
+    updateSpiralRibbons: noop("updateSpiralRibbons"),
     updateStructures: noop("updateStructures"),
     applyDeadUnits: noop("applyDeadUnits"),
     applyConquestEvents: noop("applyConquestEvents"),
@@ -307,6 +331,7 @@ async function main(): Promise<void> {
   console.debug = () => {}; // silence per-tick debug logging
 
   const gameConfig: GameConfig = {
+    fogOfWar: opts.fog,
     gameMap: opts.map,
     gameMapSize: GameMapSize.Normal,
     gameMode: GameMode.FFA,
@@ -370,6 +395,18 @@ async function main(): Promise<void> {
     gameStart.gameID,
     gameStart.players,
   );
+  // Existing bots-only runs are spectators and bypass fog entirely. Observe
+  // one fixed faction to measure the actual player mask and upload behavior.
+  if (opts.observe) {
+    let observedID: string | undefined;
+    gameView.myPlayer = () => {
+      observedID ??= gameView
+        .players()
+        .find((p) => p.isAlive())
+        ?.id();
+      return observedID ? gameView.player(observedID) : null;
+    };
+  }
   const glStub = createGlStub();
   const builder = new WebGLFrameBuilder(
     glStub.view as unknown as ConstructorParameters<
@@ -509,7 +546,9 @@ async function main(): Promise<void> {
   const n = summaries.total.count;
 
   console.log(`\n${"=".repeat(72)}`);
-  console.log(`Client update perf: ${opts.map}, ${n} game ticks`);
+  console.log(
+    `Client update perf: ${opts.map}, ${n} game ticks, fog=${opts.fog}, observe=${opts.observe}`,
+  );
   console.log("=".repeat(72));
 
   console.log(`\n--- Game state at end ---`);
@@ -590,6 +629,11 @@ async function main(): Promise<void> {
       `(all across whole run; per-entry CPU cost not measured — see header)`,
   );
 
+  console.log(
+    `Texture uploads (whole run): trail rows=${glStub.counts.get("trailUploadRows") ?? 0}, ` +
+      `railroad bytes=${glStub.counts.get("railroadUploadBytes") ?? 0}`,
+  );
+
   if (profile) {
     console.log(
       `\n--- Top client-side functions by self time (V8 sampling profiler) ---`,
@@ -623,7 +667,7 @@ async function main(): Promise<void> {
     fs.mkdirSync(outDir, { recursive: true });
     const outFile = path.join(
       outDir,
-      `client-${opts.map.replace(/\W+/g, "_")}-${opts.seed}.cpuprofile`,
+      `client-${opts.map.replace(/\W+/g, "_")}-${opts.seed}${opts.fog ? "-fog" : ""}.cpuprofile`,
     );
     fs.writeFileSync(outFile, JSON.stringify(profile));
     console.log(
