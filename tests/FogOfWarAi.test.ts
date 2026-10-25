@@ -283,7 +283,7 @@ it("shares allied radar coverage, respects upgrades and construction, and revoke
   radar.setUnderConstruction(false);
   radar.delete();
   const own = ai.buildUnit(UnitType.RadarStation, at(4, 0), {});
-  const far = at(160, 100);
+  const far = at(170, 100); // Outside the ally's expanded twenty-tile land vision.
   expect(hasTileVision(game, ai, far)).toBe(false);
   own.increaseLevel();
   expect(hasTileVision(game, ai, far)).toBe(true);

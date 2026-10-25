@@ -194,6 +194,15 @@ export class Config {
   coastalBatteryDamage(): number {
     return 300;
   }
+  coastalBatteryRegenDelayTicks(): number {
+    return 150;
+  }
+  coastalBatteryRegenIntervalTicks(): number {
+    return 10;
+  }
+  coastalBatteryRegenAmount(): number {
+    return 5;
+  }
   submarineRange(): number {
     return 55;
   }

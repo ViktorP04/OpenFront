@@ -1,7 +1,7 @@
 import { UnitType } from "@openfront/engine-api/game/GameTypes";
 import { radarRange } from "./NavalBalance";
 
-export const TERRITORY_VISION = 12;
+export const TERRITORY_VISION = 20;
 export const SHIP_VISION_LINGER_TICKS = 100;
 export const RADAR_VISION = radarRange();
 

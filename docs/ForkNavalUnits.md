@@ -21,9 +21,13 @@ Projectile damage uses the same deterministic damage roll as warship shells.
 
 Build batteries on owned land immediately beside water, with normal structure
 spacing. They take eight seconds to complete and give no defense-post land bonus.
-They fire automatically on hostile ships and belong to whoever captures their
-territory. Warships and submarines can destroy them with normal naval fire;
-damaged batteries show health bars. In fog, ships target batteries they can see,
+They fire automatically on hostile military ships and transports, ignoring trade
+ships, and belong to whoever captures their territory. Warships and submarines
+can destroy them with normal naval fire;
+damaged batteries show health bars. After 15 seconds without taking damage,
+they regenerate 5 health per second up to their 800-health maximum. Further
+damage restarts that delay; unfinished or destroyed batteries cannot regenerate.
+In fog, ships target batteries they can see,
 or batteries firing on their own fleet, within their weapon range. Friendly
 batteries are ignored. Batteries cannot bombard other land buildings. Upgrade them through the same
 build/upgrade controls as other structures. Range is `140 - 200 / (level + 1)`:

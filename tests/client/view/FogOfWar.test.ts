@@ -22,8 +22,8 @@ describe("fog vision", () => {
     owners[20 * 80] = 1;
     owners[20 * 80 + 40] = 2;
     const v = fog.update(owners, new Set([1]), []);
-    expect(v[20 * 80 + 12]).toBeGreaterThan(0);
-    expect(v[20 * 80 + 13]).toBe(0);
+    expect(v[20 * 80 + 20]).toBeGreaterThan(0);
+    expect(v[20 * 80 + 21]).toBe(0);
     expect(v[19 * 80 + 79]).toBe(0);
     expect(v[20 * 80 + 40]).toBe(0);
   });

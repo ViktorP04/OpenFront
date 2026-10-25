@@ -115,6 +115,62 @@ it("scales naval costs and records separate build statistics", () => {
 });
 
 describe("Coastal Battery", () => {
+  it("ignores nearby trade ships while firing on military transports", () => {
+    const battery = a.buildUnit(UnitType.CoastalBattery, at(7, 20), {});
+    game.addExecution(new CoastalBatteryExecution(battery));
+    const trade = b.buildUnit(UnitType.TradeShip, at(20, 20), {
+      targetUnit: tradeDestination,
+    });
+    executeTicks(game, 70);
+    expect(trade.isActive()).toBe(true);
+    expect(battery.targetUnit()).toBeUndefined();
+    const transport = b.buildUnit(UnitType.TransportShip, at(25, 20), {
+      troops: 1000,
+    });
+    executeTicks(game, 30);
+    expect(transport.isActive()).toBe(false);
+    expect(trade.isActive()).toBe(true);
+    expect(trade.owner()).toBe(b);
+  });
+
+  it("regenerates slowly after a damage-free delay, resets on new damage, and preserves timers through snapshots", async () => {
+    const battery = a.buildUnit(UnitType.CoastalBattery, at(7, 20), {});
+    game.addExecution(new CoastalBatteryExecution(battery));
+    executeTicks(game, 2);
+    battery.modifyHealth(-100);
+    executeTicks(game, 150);
+    expect(battery.health()).toBe(700);
+    executeTicks(game, 1);
+    expect(battery.health()).toBe(705);
+    executeTicks(game, 10);
+    expect(battery.health()).toBe(710);
+    battery.modifyHealth(-10);
+    executeTicks(game, 100);
+    expect(battery.health()).toBe(700);
+    await navalRoundTrip(game, 51);
+    expect(battery.health()).toBe(705);
+    battery.modifyHealth(94);
+    executeTicks(game, 10);
+    expect(battery.health()).toBe(800);
+  });
+
+  it("does not regenerate during construction or after destruction", () => {
+    const battery = a.buildUnit(UnitType.CoastalBattery, at(7, 20), {});
+    battery.modifyHealth(-100);
+    battery.setUnderConstruction(true);
+    game.addExecution(new CoastalBatteryExecution(battery));
+    executeTicks(game, 200);
+    expect(battery.health()).toBe(700);
+    battery.setUnderConstruction(false);
+    executeTicks(game, 150);
+    expect(battery.health()).toBe(700);
+    executeTicks(game, 1);
+    expect(battery.health()).toBe(705);
+    battery.modifyHealth(-800, b);
+    executeTicks(game, 200);
+    expect(battery.isActive()).toBe(false);
+    expect(battery.health()).toBe(0);
+  });
   it("can exchange fire with a warship and be destroyed", () => {
     const battery = a.buildUnit(UnitType.CoastalBattery, at(7, 20), {});
     expect(battery.health()).toBe(800);
@@ -219,8 +275,8 @@ describe("Coastal Battery", () => {
     executeTicks(game, 2);
     const battery = a.units(UnitType.CoastalBattery)[0];
     expect(battery.isUnderConstruction()).toBe(true);
-    const ship = b.buildUnit(UnitType.TradeShip, at(20, 20), {
-      targetUnit: tradeDestination,
+    const ship = b.buildUnit(UnitType.TransportShip, at(20, 20), {
+      troops: 1000,
     });
     executeTicks(game, 50);
     expect(ship.isActive()).toBe(true);
@@ -231,8 +287,8 @@ describe("Coastal Battery", () => {
   it("ignores friendly ships and targets for its new owner after capture", () => {
     const battery = a.buildUnit(UnitType.CoastalBattery, at(7, 20), {});
     game.addExecution(new CoastalBatteryExecution(battery));
-    const friendly = a.buildUnit(UnitType.TradeShip, at(20, 20), {
-      targetUnit: tradeDestination,
+    const friendly = a.buildUnit(UnitType.TransportShip, at(20, 20), {
+      troops: 1000,
     });
     executeTicks(game, 20);
     expect(friendly.isActive()).toBe(true);
@@ -245,8 +301,8 @@ describe("Coastal Battery", () => {
     const battery = a.buildUnit(UnitType.CoastalBattery, at(7, 20), {});
     game.addExecution(new CoastalBatteryExecution(battery));
     const city = b.buildUnit(UnitType.City, at(3, 80), {});
-    const ship = b.buildUnit(UnitType.TradeShip, at(130, 20), {
-      targetUnit: tradeDestination,
+    const ship = b.buildUnit(UnitType.TransportShip, at(130, 20), {
+      troops: 1000,
     });
     executeTicks(game, 60);
     expect(city.isActive()).toBe(true);
@@ -462,8 +518,8 @@ describe("Radar Station", () => {
 it("starts batteries with shorter reach and applies upgrades to live combat and snapshots", async () => {
   const battery = a.buildUnit(UnitType.CoastalBattery, at(7, 20), {});
   game.addExecution(new CoastalBatteryExecution(battery));
-  const target = b.buildUnit(UnitType.TradeShip, at(67, 20), {
-    targetUnit: tradeDestination,
+  const target = b.buildUnit(UnitType.TransportShip, at(67, 20), {
+    troops: 1000,
   });
   expect(game.config().coastalBatteryRange(battery.level())).toBe(40);
   executeTicks(game, 40);

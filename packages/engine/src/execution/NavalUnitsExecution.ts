@@ -39,7 +39,6 @@ const SUBMARINE_TARGETS = [
 
 const SHIP_TARGETS = [
   UnitType.TransportShip,
-  UnitType.TradeShip,
   UnitType.Submarine,
   UnitType.Warship,
 ];
@@ -73,6 +72,8 @@ function targetFor(
 export class CoastalBatteryExecution implements Execution {
   private game: Game;
   private lastAttackTick = -1000000;
+  private lastHealth: number | null = null;
+  private lastDamageTick = -1000000;
   private sentTo = new Set<Unit>();
   constructor(private battery: Unit) {}
   init(game: Game): void {
@@ -80,6 +81,19 @@ export class CoastalBatteryExecution implements Execution {
   }
   tick(tick: number): void {
     if (!this.battery.isActive() || this.battery.isUnderConstruction()) return;
+    const config = this.game.config();
+    const health = this.battery.health();
+    if (this.lastHealth === null || health < this.lastHealth)
+      this.lastDamageTick = tick;
+    const healingTicks =
+      tick - this.lastDamageTick - config.coastalBatteryRegenDelayTicks();
+    if (
+      health < this.battery.maxHealth() &&
+      healingTicks >= 0 &&
+      healingTicks % config.coastalBatteryRegenIntervalTicks() === 0
+    )
+      this.battery.modifyHealth(config.coastalBatteryRegenAmount());
+    this.lastHealth = this.battery.health();
     for (const unit of this.sentTo)
       if (!unit.isActive()) this.sentTo.delete(unit);
     const target = targetFor(
@@ -117,6 +131,8 @@ export class CoastalBatteryExecution implements Execution {
       initialized: this.game !== undefined,
       battery: w.unit(this.battery),
       lastAttackTick: this.lastAttackTick,
+      lastHealth: this.lastHealth,
+      lastDamageTick: this.lastDamageTick,
       sentTo: [...this.sentTo].map((u) => w.unit(u)),
     });
   }
@@ -124,6 +140,8 @@ export class CoastalBatteryExecution implements Execution {
     if (s.initialized) this.game = r.game;
     this.battery = r.unit(s.battery);
     this.lastAttackTick = s.lastAttackTick;
+    this.lastHealth = s.lastHealth;
+    this.lastDamageTick = s.lastDamageTick;
     this.sentTo = new Set(s.sentTo.map((i) => r.unit(i)));
   }
 }
@@ -131,12 +149,21 @@ const BatteryStateSchema = z.object({
   initialized: z.boolean(),
   battery: zRef(),
   lastAttackTick: zInt(),
+  lastHealth: zInt().nullable(),
+  lastDamageTick: zInt(),
   sentTo: z.array(zRef()),
 });
 type BatteryState = z.infer<typeof BatteryStateSchema>;
 export const CoastalBatteryExecutionSnapshot = execSnapshotType({
   name: "CoastalBattery",
-  version: 1,
+  version: 2,
+  migrations: {
+    1: (raw) => ({
+      ...(raw as object),
+      lastHealth: null,
+      lastDamageTick: -1000000,
+    }),
+  },
   schema: BatteryStateSchema,
   cls: () => CoastalBatteryExecution,
 });
