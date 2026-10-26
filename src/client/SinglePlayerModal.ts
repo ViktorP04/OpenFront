@@ -18,9 +18,10 @@ import { html, TemplateResult } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import { translateText } from "../client/Utils";
 import { responseHasLinkedIdentity } from "./AccountIdentity";
+import { BaseModal } from "./components/BaseModal";
 import "./components/baseComponents/Button";
 import "./components/baseComponents/Modal";
-import { BaseModal } from "./components/BaseModal";
+import { renderFogSettings, type FogScale } from "./components/FogSettings";
 import "./components/GameConfigSettings";
 import { MEDAL_ORDER, medalIcon } from "./components/map/Medals";
 import {
@@ -196,6 +197,8 @@ export class SinglePlayerModal extends BaseModal {
     DEFAULT_OPTIONS.maxTimerValue;
   @state() private instantBuild: boolean = DEFAULT_OPTIONS.instantBuild;
   @state() private fogOfWar: boolean = false;
+  @state() private fogOfWarScale: FogScale = 1;
+  @state() private fogOfWarTrails = true;
   @state() private randomSpawn: boolean = DEFAULT_OPTIONS.randomSpawn;
   @state() private useRandomMap: boolean = DEFAULT_OPTIONS.useRandomMap;
   @state() private gameMode: GameMode = DEFAULT_OPTIONS.gameMode;
@@ -424,6 +427,17 @@ export class SinglePlayerModal extends BaseModal {
 
   protected renderBody() {
     const inputCards = [
+      ...renderFogSettings(
+        this.fogOfWar,
+        this.fogOfWarScale,
+        this.fogOfWarTrails,
+        (scale) => {
+          this.fogOfWarScale = scale;
+        },
+        (enabled) => {
+          this.fogOfWarTrails = enabled;
+        },
+      ),
       html`<toggle-input-card
         .labelKey=${"game_settings.max_timer"}
         .checked=${this.maxTimer}
@@ -721,6 +735,8 @@ export class SinglePlayerModal extends BaseModal {
     this.instantBuild = DEFAULT_OPTIONS.instantBuild;
     this.randomSpawn = DEFAULT_OPTIONS.randomSpawn;
     this.fogOfWar = false;
+    this.fogOfWarScale = 1;
+    this.fogOfWarTrails = true;
     this.teamCount = DEFAULT_OPTIONS.teamCount;
     this.disabledUnits = [...DEFAULT_OPTIONS.disabledUnits];
     this.goldMultiplier = DEFAULT_OPTIONS.goldMultiplier;
@@ -1147,6 +1163,8 @@ export class SinglePlayerModal extends BaseModal {
             instantBuild: this.instantBuild,
             randomSpawn: this.randomSpawn,
             fogOfWar: this.fogOfWar,
+            fogOfWarScale: this.fogOfWarScale,
+            fogOfWarTrails: this.fogOfWarTrails,
             disabledUnits: this.disabledUnits.filter((unit): unit is UnitType =>
               Object.values(UnitType).includes(unit),
             ),

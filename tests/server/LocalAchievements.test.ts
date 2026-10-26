@@ -16,7 +16,15 @@ it.each([false, true])(
     const info = completionInfo();
     expect(
       eligibleCompletion(
-        { ...info, config: { ...info.config, fogOfWar } },
+        {
+          ...info,
+          config: {
+            ...info.config,
+            fogOfWar,
+            fogOfWarScale: 4,
+            fogOfWarTrails: false,
+          },
+        },
         completionUser,
       ),
     ).toEqual({ mapName: "Viktor", difficulty: "Medium" });

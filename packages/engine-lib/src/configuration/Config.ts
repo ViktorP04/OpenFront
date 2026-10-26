@@ -102,6 +102,14 @@ export class Config {
     return this._gameConfig.fogOfWar ?? false;
   }
 
+  fogOfWarScale(): 1 | 2 | 4 | 8 {
+    return this._gameConfig.fogOfWarScale ?? 1;
+  }
+
+  fogOfWarTrails(): boolean {
+    return this._gameConfig.fogOfWarTrails ?? true;
+  }
+
   isReplay(): boolean {
     return this._isReplay;
   }

@@ -36,6 +36,13 @@ export function createTileVisionQuery(
   if (!game.config().fogOfWar() || game.inSpawnPhase()) {
     return (tile) => game.isValidRef(tile);
   }
+  const scale = game.config().fogOfWarScale();
+  const cellX = (tile: TileRef) => Math.floor(game.x(tile) / scale);
+  const cellY = (tile: TileRef) => Math.floor(game.y(tile) / scale);
+  const distanceSquared = (a: TileRef, b: TileRef) =>
+    scale === 1
+      ? game.euclideanDistSquared(a, b)
+      : (cellX(a) - cellX(b)) ** 2 + (cellY(a) - cellY(b)) ** 2;
   const viewerID = viewer.smallID();
   const relationships = new Map<number, boolean>();
   const friendlyOwner = (id: number) => {
@@ -51,7 +58,9 @@ export function createTileVisionQuery(
   const tick = game.ticks(),
     width = game.width(),
     height = game.height();
-  const trails = game.shipVisionTrails();
+  const trails = game.config().fogOfWarTrails()
+    ? game.shipVisionTrails()
+    : undefined;
   let satellites: Unit[] | undefined;
   let radars: Unit[] | undefined;
   let localChecks = 0;
@@ -59,7 +68,7 @@ export function createTileVisionQuery(
     | { x: number; y: number; radiusSquared: number }[]
     | null
     | undefined;
-  return (tile) => {
+  const query = (tile: TileRef) => {
     if (!game.isValidRef(tile)) return false;
     satellites ??= game.units(UnitType.Satellite);
     if (
@@ -68,23 +77,24 @@ export function createTileVisionQuery(
           satellite.isActive() &&
           friendlyOwner(satellite.owner().smallID()) &&
           satelliteDistanceSquared(
-            width,
-            height,
-            game.x(tile),
-            game.y(tile),
-            game.x(satellite.tile()),
-            game.y(satellite.tile()),
+            Math.ceil(width / scale),
+            Math.ceil(height / scale),
+            cellX(tile),
+            cellY(tile),
+            cellX(satellite.tile()),
+            cellY(satellite.tile()),
           ) <=
-            SATELLITE_VISION ** 2,
+            Math.floor(SATELLITE_VISION / scale) ** 2,
       )
     )
       return true;
-    if (trails.hasVision(tick, tile, friendlyOwner)) return true;
+    if (trails?.hasVision(tick, tile, friendlyOwner, scale)) return true;
     if (
       territoryVisionIndex(game).hasVision(
         tile,
         TERRITORY_VISION,
         friendlyOwner,
+        scale,
       )
     )
       return true;
@@ -101,32 +111,41 @@ export function createTileVisionQuery(
             friendlyOwner(unit.owner().smallID()),
         )
         .map((unit) => ({
-          x: game.x(unit.tile()),
-          y: game.y(unit.tile()),
+          x: cellX(unit.tile()),
+          y: cellY(unit.tile()),
           radiusSquared:
-            Math.min(
-              LOCAL_RANGE,
-              unitVisionRadius(unit.type(), unit.level()),
+            Math.floor(
+              Math.min(
+                LOCAL_RANGE,
+                unitVisionRadius(unit.type(), unit.level()),
+              ) / scale,
             ) ** 2,
         }));
       // With many allies or a large fleet, retain the spatial grid instead.
       if (localSources.length > 64) localSources = null;
     }
     if (localSources) {
-      const x = game.x(tile),
-        y = game.y(tile);
+      const x = cellX(tile),
+        y = cellY(tile);
       for (const source of localSources) {
         if ((source.x - x) ** 2 + (source.y - y) ** 2 <= source.radiusSquared)
           return true;
       }
     } else if (
-      game.anyUnitNearby(tile, LOCAL_RANGE, LOCAL_SOURCES, (unit) => {
-        const radius = unitVisionRadius(unit.type(), unit.level());
-        return (
-          friendlyOwner(unit.owner().smallID()) &&
-          game.euclideanDistSquared(tile, unit.tile()) <= radius * radius
-        );
-      })
+      game.anyUnitNearby(
+        tile,
+        LOCAL_RANGE + 2 * (scale - 1),
+        LOCAL_SOURCES,
+        (unit) => {
+          const radius = Math.floor(
+            unitVisionRadius(unit.type(), unit.level()) / scale,
+          );
+          return (
+            friendlyOwner(unit.owner().smallID()) &&
+            distanceSquared(tile, unit.tile()) <= radius * radius
+          );
+        },
+      )
     )
       return true;
     radars ??= game.units(UnitType.RadarStation);
@@ -134,9 +153,24 @@ export function createTileVisionQuery(
       (unit) =>
         !unit.isUnderConstruction() &&
         friendlyOwner(unit.owner().smallID()) &&
-        game.euclideanDistSquared(tile, unit.tile()) <=
-          unitVisionRadius(unit.type(), unit.level()) ** 2,
+        distanceSquared(tile, unit.tile()) <=
+          Math.floor(unitVisionRadius(unit.type(), unit.level()) / scale) ** 2,
     );
+  };
+  if (scale === 1) return query;
+  // A shoreline often has multiple map pixels in one visibility cell.
+  // Cache only within this read-only batch, never across simulation actions.
+  const cache = new Map<number, boolean>();
+  const columns = Math.ceil(width / scale);
+  return (tile) => {
+    if (!game.isValidRef(tile)) return false;
+    const cell = cellY(tile) * columns + cellX(tile);
+    let value = cache.get(cell);
+    if (value === undefined) {
+      value = query(tile);
+      cache.set(cell, value);
+    }
+    return value;
   };
 }
 

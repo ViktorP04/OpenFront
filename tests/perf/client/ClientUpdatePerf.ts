@@ -76,6 +76,8 @@ interface Options {
   fog: boolean;
   observe: boolean;
   followLiving: boolean;
+  fogScale: 1 | 2 | 4 | 8;
+  fogTrails: boolean;
   map: GameMapType;
   ticks: number;
   bots: number;
@@ -103,6 +105,8 @@ function parseArgs(argv: string[]): Options {
     fog: false,
     observe: false,
     followLiving: false,
+    fogScale: 1,
+    fogTrails: true,
     map: GameMapType.World,
     ticks: 1800,
     bots: 400,
@@ -119,6 +123,16 @@ function parseArgs(argv: string[]): Options {
       return v;
     };
     switch (arg) {
+      case "--fog-scale": {
+        const scale = Number(next());
+        if (![1, 2, 4, 8].includes(scale))
+          throw new Error("fog scale must be 1, 2, 4 or 8");
+        opts.fogScale = scale as 1 | 2 | 4 | 8;
+        break;
+      }
+      case "--no-fog-trails":
+        opts.fogTrails = false;
+        break;
       case "--fog":
         opts.fog = true;
         opts.observe = true;
@@ -354,6 +368,8 @@ async function main(): Promise<void> {
 
   const gameConfig: GameConfig = {
     fogOfWar: opts.fog,
+    fogOfWarScale: opts.fogScale,
+    fogOfWarTrails: opts.fogTrails,
     gameMap: opts.map,
     gameMapSize: GameMapSize.Normal,
     gameMode: GameMode.FFA,
@@ -574,7 +590,7 @@ async function main(): Promise<void> {
 
   console.log(`\n${"=".repeat(72)}`);
   console.log(
-    `Client update perf: ${opts.map}, ${n} game ticks, fog=${opts.fog}, observe=${opts.observe}`,
+    `Client update perf: ${opts.map}, ${n} game ticks, fog=${opts.fog}, scale=${opts.fogScale}, trails=${opts.fogTrails}, observe=${opts.observe}`,
   );
   console.log("=".repeat(72));
 

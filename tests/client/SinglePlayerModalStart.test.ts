@@ -29,6 +29,8 @@ describe("SinglePlayerModal start", () => {
     const modal = createModal();
     expect(modal.hasOptionsChanged()).toBe(false);
     modal.fogOfWar = true;
+    modal.fogOfWarScale = 4;
+    modal.fogOfWarTrails = false;
     expect(modal.hasOptionsChanged()).toBe(false);
     modal.infiniteGold = true;
     expect(modal.hasOptionsChanged()).toBe(true);
@@ -50,6 +52,8 @@ describe("SinglePlayerModal start", () => {
     expect(modal.fogOfWar).toBe(false);
     modal.fogOfWar = true;
 
+    modal.fogOfWarScale = 4;
+    modal.fogOfWarTrails = false;
     await modal.startGame();
 
     expect(events).toHaveLength(1);
@@ -57,6 +61,8 @@ describe("SinglePlayerModal start", () => {
     const config = events[0].gameStartInfo.config;
     expect(config.playerTeams).toBe(4);
     expect(config.fogOfWar).toBe(true);
+    expect(config.fogOfWarScale).toBe(4);
+    expect(config.fogOfWarTrails).toBe(false);
     expect(config.disabledUnits).toEqual([UnitType.Warship]);
   });
 });

@@ -435,3 +435,26 @@ it("updates indexed territory vision immediately across all ownership write path
   ai.breakAlliance(ai.allianceWith(ally)!);
   expect(hasTileVision(game, ai, at(120, 60))).toBe(false);
 });
+
+it.each([1, 2, 4, 8] as const)(
+  "ignores past trails when disabled but still sees current ships (scale %s)",
+  (scale) => {
+    game.config().gameConfig().fogOfWarScale = scale;
+    const tile = at(100, 60);
+    game
+      .shipVisionTrails()
+      .record(game.ticks(), [{ owner: ai.smallID(), pos: tile, radius: 35 }]);
+    expect(hasTileVision(game, ai, tile)).toBe(true);
+    game.config().gameConfig().fogOfWarTrails = false;
+    expect(hasTileVision(game, ai, tile)).toBe(false);
+    ai.buildUnit(UnitType.Warship, tile, { patrolTile: tile });
+    expect(hasTileVision(game, ai, tile)).toBe(true);
+  },
+);
+
+it("does not record ship history when visibility trails are disabled", () => {
+  game.config().gameConfig().fogOfWarTrails = false;
+  ai.buildUnit(UnitType.Warship, at(70), { patrolTile: at(70) });
+  executeTicks(game, 3);
+  expect(game.shipVisionTrails().snapshot()).toEqual([]);
+});

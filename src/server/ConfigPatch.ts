@@ -22,6 +22,8 @@ const COPIED_KEYS = [
   "instantBuild",
   "randomSpawn",
   "fogOfWar",
+  "fogOfWarScale",
+  "fogOfWarTrails",
   "gameMode",
   "disabledUnits",
   "playerTeams",

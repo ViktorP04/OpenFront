@@ -143,6 +143,8 @@ describe("host fog of war configuration", () => {
     modal.lobbyId = LOBBY;
     const info = lobbyInfo(undefined);
     info.lobby.gameConfig!.fogOfWar = true;
+    info.lobby.gameConfig!.fogOfWarScale = 8;
+    info.lobby.gameConfig!.fogOfWarTrails = false;
     modal.handleLobbyInfo(info);
     expect(modal.fogOfWar).toBe(true);
     modal.constructUrl = vi.fn(async () => "http://localhost/");
@@ -153,5 +155,7 @@ describe("host fog of war configuration", () => {
     });
     await modal.putGameConfig();
     expect(config.fogOfWar).toBe(true);
+    expect(config.fogOfWarScale).toBe(8);
+    expect(config.fogOfWarTrails).toBe(false);
   });
 });

@@ -79,6 +79,16 @@ export function notableLobbySettings(
       label: translateText("game_settings.fog_of_war"),
       value: enabled,
     });
+  if (c.fogOfWar && (c.fogOfWarScale ?? 1) !== 1)
+    items.push({
+      label: translateText("game_settings.fog_resolution"),
+      value: translateText(`game_settings.fog_resolution_${c.fogOfWarScale}`),
+    });
+  if (c.fogOfWar && c.fogOfWarTrails === false)
+    items.push({
+      label: translateText("game_settings.fog_visibility_trails"),
+      value: disabled,
+    });
   if (c.randomSpawn)
     items.push({
       label: translateText("game_settings.random_spawn"),

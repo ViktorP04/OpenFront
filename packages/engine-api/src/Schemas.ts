@@ -341,6 +341,10 @@ export const GameConfigSchema = z.object({
   // ids are private lobby ids, which are join secrets.
   pool: PoolConfigSchema.optional(),
   fogOfWar: z.boolean().optional(),
+  fogOfWarScale: z
+    .union([z.literal(1), z.literal(2), z.literal(4), z.literal(8)])
+    .optional(),
+  fogOfWarTrails: z.boolean().optional(),
 });
 
 // What a host sends in update_game_config. maxPlayers is the private-lobby

@@ -111,10 +111,11 @@ export class ShipVisionTrails {
     tick: number,
     pos: number,
     friendly: (owner: number) => boolean,
+    scale = 1,
   ): boolean {
     const x = pos % this.width,
       y = Math.floor(pos / this.width);
-    const range = unitVisionRadius(UnitType.Submarine);
+    const range = unitVisionRadius(UnitType.Submarine) + scale - 1;
     const columns = this.columns;
     for (
       let cy = Math.max(0, Math.floor((y - range) / 64));
@@ -139,7 +140,14 @@ export class ShipVisionTrails {
             if (tick - entry[3] >= SHIP_VISION_LINGER_TICKS) continue;
             ownerFriendly ??= friendly(owner);
             if (!ownerFriendly) break;
-            if ((tx - x) ** 2 + (ty - y) ** 2 <= radiusSquared) return true;
+            if (scale === 1) {
+              if ((tx - x) ** 2 + (ty - y) ** 2 <= radiusSquared) return true;
+            } else if (
+              (Math.floor(tx / scale) - Math.floor(x / scale)) ** 2 +
+                (Math.floor(ty / scale) - Math.floor(y / scale)) ** 2 <=
+              Math.floor(entry[2] / scale) ** 2
+            )
+              return true;
           }
         }
       }

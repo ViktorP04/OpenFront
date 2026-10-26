@@ -6,7 +6,7 @@ export {
 } from "@openfront/engine-lib/game/FogOfWarRules";
 export { FOG_BIT } from "../render/gl/utils/TileCodec";
 
-interface VisionSource {
+export interface VisionSource {
   pos: number;
   radius: number;
   wrap?: boolean;
@@ -28,7 +28,6 @@ export class FogOfWar {
     }
     return this.changedChunks;
   }
-  readonly chunkSize = 64;
   readonly chunkColumns: number;
   private readonly territory: Uint8Array;
   private readonly friendlyTiles: Uint8Array;
@@ -53,24 +52,31 @@ export class FogOfWar {
     const y = Math.floor(chunk / this.chunkColumns) * this.chunkSize;
     this.markChunks(
       chunks,
-      x - TERRITORY_VISION,
-      y - TERRITORY_VISION,
-      x + this.chunkSize - 1 + TERRITORY_VISION,
-      y + this.chunkSize - 1 + TERRITORY_VISION,
+      x - this.territoryRadius,
+      y - this.territoryRadius,
+      x + this.chunkSize - 1 + this.territoryRadius,
+      y + this.chunkSize - 1 + this.territoryRadius,
     );
   }
   private friendlyKey: string | undefined;
-  private readonly distances = new Uint8Array((64 + TERRITORY_VISION * 2) ** 2);
+  private readonly distances: Uint8Array;
   private readonly queue: Int32Array;
   constructor(
     private readonly width: number,
     private readonly height: number,
+    private readonly territoryRadius = TERRITORY_VISION,
+    readonly chunkSize = 64,
   ) {
+    this.distances = new Uint8Array((chunkSize + territoryRadius * 2) ** 2);
     this.visible = new Uint8Array(width * height);
     this.territory = new Uint8Array(width * height);
     this.friendlyTiles = new Uint8Array(width * height);
     this.chunkColumns = Math.ceil(width / this.chunkSize);
     this.queue = new Int32Array(width * height);
+  }
+
+  isVisible(tile: number): boolean {
+    return tile >= 0 && tile < this.visible.length && this.visible[tile] !== 0;
   }
 
   update(
@@ -141,10 +147,10 @@ export class FogOfWar {
           y = Math.floor(tile / this.width);
         this.markChunks(
           chunks,
-          x - TERRITORY_VISION,
-          y - TERRITORY_VISION,
-          x + TERRITORY_VISION,
-          y + TERRITORY_VISION,
+          x - this.territoryRadius,
+          y - this.territoryRadius,
+          x + this.territoryRadius,
+          y + this.territoryRadius,
         );
       }
       for (const chunk of chunks) {
@@ -196,7 +202,7 @@ export class FogOfWar {
   /** Exact Manhattan distance on a small chunk plus its visibility halo. */
   private rebuildChunk(owners: Uint16Array, chunk: number): void {
     const size = this.chunkSize,
-      radius = TERRITORY_VISION;
+      radius = this.territoryRadius;
     const x0 = (chunk % this.chunkColumns) * size,
       y0 = Math.floor(chunk / this.chunkColumns) * size;
     const x1 = Math.min(this.width, x0 + size),
@@ -248,7 +254,7 @@ export class FogOfWar {
       this.indexOwner(tile, owners[tile] & 0xfff);
       this.friendlyTiles[tile] = friendlyLookup[owners[tile] & 0xfff];
       if (friendlyLookup[owners[tile] & 0xfff])
-        visible[tile] = TERRITORY_VISION + 1;
+        visible[tile] = this.territoryRadius + 1;
     }
     let head = 0,
       tail = 0;

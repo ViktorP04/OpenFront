@@ -655,7 +655,11 @@ export class GameImpl implements Game {
       this.recordTileUpdate(tile);
     }
     this._ticks++;
-    if (this.config().fogOfWar() && !this.inSpawnPhase()) {
+    if (
+      this.config().fogOfWar() &&
+      this.config().fogOfWarTrails() &&
+      !this.inSpawnPhase()
+    ) {
       this.shipVisionTrails().record(
         this._ticks,
         [

@@ -55,12 +55,17 @@ describe("fog vision", () => {
   });
 });
 
-function fogGame(enabled = true) {
+function fogGame(enabled = true, scale: 1 | 2 | 4 | 8 = 1, trails = true) {
   const game = makeGameView({
     width: 400,
     height: 50,
     myClientID: "client-a",
-    config: stubConfig({ fogOfWar: () => enabled, isReplay: () => false }),
+    config: stubConfig({
+      fogOfWar: () => enabled,
+      fogOfWarScale: () => scale,
+      fogOfWarTrails: () => trails,
+      isReplay: () => false,
+    }),
   });
   const gu = makeEmptyGu(1);
   gu.updates[GameUpdateType.Player] = [
@@ -592,3 +597,29 @@ it("updates alliance coverage locally, including ownership changes on the same t
   expect(fog.visible[tile]).toBe(0);
   expect(fog.dirtyChunks.size).toBeLessThan(16);
 });
+
+it.each([1, 2, 4, 8] as const)(
+  "disables ship visibility history but retains current vision at scale %s",
+  (scale) => {
+    const game = fogGame(true, scale, false);
+    for (const [tick, x] of [
+      [2, 300],
+      [3, 200],
+    ]) {
+      const gu = makeEmptyGu(tick);
+      gu.updates[GameUpdateType.Unit] = [
+        makeUnitUpdate({
+          id: 40,
+          ownerID: 1,
+          unitType: UnitType.TradeShip,
+          pos: 20 * 400 + x,
+        }),
+      ];
+      game.update(gu);
+      expect(game.isTileVisible(20 * 400 + x)).toBe(true);
+      game.frameData();
+    }
+    expect(game.isTileVisible(20 * 400 + 300)).toBe(false);
+    expect(game.frameData().tileState[20 * 400 + 300]).toBe(FOG_BIT);
+  },
+);

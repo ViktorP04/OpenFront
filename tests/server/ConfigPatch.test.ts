@@ -6,13 +6,19 @@ import {
   GameType,
   UnitType,
 } from "@openfront/engine-api/game/GameTypes";
-import { GameConfig } from "@openfront/engine-api/Schemas";
+import { GameConfig, GameConfigSchema } from "@openfront/engine-api/Schemas";
 import { describe, expect, it } from "vitest";
 import {
   applyGameConfigPatch,
   hostCheatsEnabled,
 } from "../../src/server/ConfigPatch";
 import { testGameConfig } from "../util/Wire";
+
+it.each([0, 3, 16])("rejects unsupported fog scale %s", (fogOfWarScale) => {
+  expect(
+    GameConfigSchema.safeParse({ ...testGameConfig(), fogOfWarScale }).success,
+  ).toBe(false);
+});
 
 // One value per key the host may edit, each different from testGameConfig's
 // default so a copy is observable.
@@ -29,6 +35,8 @@ const EDITABLE: { [K in keyof GameConfig]?: GameConfig[K] } = {
   instantBuild: true,
   randomSpawn: true,
   fogOfWar: true,
+  fogOfWarScale: 4,
+  fogOfWarTrails: false,
   gameMode: GameMode.Team,
   disabledUnits: [UnitType.AtomBomb],
   playerTeams: 3,

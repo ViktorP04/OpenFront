@@ -29,10 +29,11 @@ import {
   translateText,
 } from "../client/Utils";
 import { createLobby, getUserMe, queueLobby, setLobbyListed } from "./Api";
-import "./components/baseComponents/Modal";
 import { BaseModal } from "./components/BaseModal";
-import "./components/ConfirmDialog";
+import "./components/baseComponents/Modal";
 import { CopyButton } from "./components/CopyButton";
+import "./components/ConfirmDialog";
+import { renderFogSettings, type FogScale } from "./components/FogSettings";
 import "./components/GameConfigSettings";
 import "./components/InputCard";
 import "./components/InsufficientCurrencyDialog";
@@ -89,6 +90,8 @@ export class HostLobbyModal extends BaseModal {
   @state() private startDelayValue: number | undefined = 3;
   @state() private instantBuild: boolean = false;
   @state() private fogOfWar: boolean = false;
+  @state() private fogOfWarScale: FogScale = 1;
+  @state() private fogOfWarTrails = true;
   private fogLoadedFor: string | null = null;
   private fogEdited = false;
   @state() private randomSpawn: boolean = false;
@@ -167,7 +170,11 @@ export class HostLobbyModal extends BaseModal {
     }
     if (this.fogLoadedFor !== this.lobbyId) {
       this.fogLoadedFor = this.lobbyId;
-      if (!this.fogEdited) this.fogOfWar = lobby.gameConfig?.fogOfWar ?? false;
+      if (!this.fogEdited) {
+        this.fogOfWar = lobby.gameConfig?.fogOfWar ?? false;
+        this.fogOfWarScale = lobby.gameConfig?.fogOfWarScale ?? 1;
+        this.fogOfWarTrails = lobby.gameConfig?.fogOfWarTrails ?? true;
+      }
     }
     // A host returning to an existing lobby (?host) starts with default
     // settings; without this, their next change of any setting would send
@@ -455,6 +462,21 @@ export class HostLobbyModal extends BaseModal {
           );
 
     const inputCards = [
+      ...renderFogSettings(
+        this.fogOfWar,
+        this.fogOfWarScale,
+        this.fogOfWarTrails,
+        (scale) => {
+          this.fogOfWarScale = scale;
+          this.fogEdited = true;
+          this.putGameConfig();
+        },
+        (enabled) => {
+          this.fogOfWarTrails = enabled;
+          this.fogEdited = true;
+          this.putGameConfig();
+        },
+      ),
       html`<toggle-input-card
         .labelKey=${"game_settings.max_timer"}
         .checked=${this.maxTimer}
@@ -1056,6 +1078,8 @@ export class HostLobbyModal extends BaseModal {
     this.instantBuild = false;
     this.randomSpawn = false;
     this.fogOfWar = false;
+    this.fogOfWarScale = 1;
+    this.fogOfWarTrails = true;
     this.fogLoadedFor = null;
     this.fogEdited = false;
     this.compactMap = false;
@@ -1689,6 +1713,14 @@ export class HostLobbyModal extends BaseModal {
             fogOfWar:
               this.fogEdited || this.fogLoadedFor === this.lobbyId
                 ? this.fogOfWar
+                : undefined,
+            fogOfWarScale:
+              this.fogEdited || this.fogLoadedFor === this.lobbyId
+                ? this.fogOfWarScale
+                : undefined,
+            fogOfWarTrails:
+              this.fogEdited || this.fogLoadedFor === this.lobbyId
+                ? this.fogOfWarTrails
                 : undefined,
             gameMode: this.gameMode,
             disabledUnits: this.disabledUnits,

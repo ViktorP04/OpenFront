@@ -44,13 +44,15 @@ export class TerritoryVisionIndex {
     tile: TileRef,
     radius: number,
     friendly: (owner: number) => boolean,
+    scale = 1,
   ): boolean {
-    const cx = tile % this.width,
-      cy = Math.floor(tile / this.width);
-    const left = Math.max(0, cx - radius),
-      right = Math.min(this.width - 1, cx + radius);
-    const top = Math.max(0, cy - radius),
-      bottom = Math.min(this.height - 1, cy + radius);
+    const cx = Math.floor((tile % this.width) / scale),
+      cy = Math.floor(Math.floor(tile / this.width) / scale);
+    const cells = Math.floor(radius / scale);
+    const left = Math.max(0, (cx - cells) * scale),
+      right = Math.min(this.width - 1, (cx + cells + 1) * scale - 1);
+    const top = Math.max(0, (cy - cells) * scale),
+      bottom = Math.min(this.height - 1, (cy + cells + 1) * scale - 1);
     for (
       let row = Math.floor(top / SIZE);
       row <= Math.floor(bottom / SIZE);
@@ -78,9 +80,9 @@ export class TerritoryVisionIndex {
         // Only inspect exact diamond/cell intersections; diagonal corners
         // of the bounding square must never grant additional vision.
         for (let y = y0; y <= y1; y++) {
-          const dx = radius - Math.abs(y - cy);
-          const end = Math.min(x1, cx + dx);
-          for (let x = Math.max(x0, cx - dx); x <= end; x++) {
+          const dx = cells - Math.abs(Math.floor(y / scale) - cy);
+          const end = Math.min(x1, (cx + dx + 1) * scale - 1);
+          for (let x = Math.max(x0, (cx - dx) * scale); x <= end; x++) {
             const owner = this.owners[y * this.width + x] & 0xfff;
             if (owner !== 0 && friendly(owner)) return true;
           }

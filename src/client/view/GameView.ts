@@ -44,6 +44,7 @@ import { TRAIL_TYPES } from "../render/types/UnitType";
 import { UserSettings } from "../UserSettings";
 import { resolveTeamClanTag } from "../Utils";
 import { WorkerClient } from "../WorkerClient";
+import { CoarseFogOfWar } from "./CoarseFogOfWar";
 import type { CosmeticVisibility } from "./CosmeticVisibility";
 import {
   applyPackedAttackTroops,
@@ -108,7 +109,7 @@ export class GameView implements GameLike {
    */
   private _frame: FrameData;
   private _structuresDirty = false;
-  private fog?: FogOfWar;
+  private fog?: FogOfWar | CoarseFogOfWar;
   private shipVisionTrails?: ShipVisionTrails;
   private visionTick = -1;
   private visibleFrame?: FrameData;
@@ -471,7 +472,11 @@ export class GameView implements GameLike {
 
     this.motion.advance(gu.tick, this.plannedUnits);
 
-    if (this._config.fogOfWar() && !this.inSpawnPhase()) {
+    if (
+      this._config.fogOfWar() &&
+      this._config.fogOfWarTrails() &&
+      !this.inSpawnPhase()
+    ) {
       this.shipVisionTrails ??= new ShipVisionTrails(this.width());
       if (gu.shipVisionTrails)
         this.shipVisionTrails.restore(gu.shipVisionTrails);
@@ -687,7 +692,14 @@ export class GameView implements GameLike {
   private vision(): Uint8Array | null {
     if (!this._config.fogOfWar() || this.inSpawnPhase() || this.isSpectator())
       return null;
-    this.fog ??= new FogOfWar(this.width(), this.height());
+    this.fog ??=
+      this._config.fogOfWarScale() === 1
+        ? new FogOfWar(this.width(), this.height())
+        : new CoarseFogOfWar(
+            this.width(),
+            this.height(),
+            this._config.fogOfWarScale(),
+          );
     if (this.visionTick !== this.ticks()) {
       const viewer = this.myPlayer()!;
       const friendly = new Set(
@@ -699,6 +711,7 @@ export class GameView implements GameLike {
         .filter(
           (u) => friendly.has(u.owner().smallID()) && !u.isUnderConstruction(),
         )
+        .filter((u) => unitVisionRadius(u.type(), u.level()) > 0)
         .map((u) => ({
           pos: u.tile(),
           radius: unitVisionRadius(u.type(), u.level()),
@@ -711,9 +724,10 @@ export class GameView implements GameLike {
         this.renderedFog ? this.fogTerritoryChanges : undefined,
       );
       this.fogTerritoryChanges.clear();
-      this.fog.addSources(
-        this.shipVisionTrails?.sources(this.ticks(), friendly) ?? [],
-      );
+      if (this._config.fogOfWarTrails())
+        this.fog.addSources(
+          this.shipVisionTrails?.sources(this.ticks(), friendly) ?? [],
+        );
       for (const chunk of this.fog.dirtyChunks) this.fogMaskChunks.add(chunk);
       this.visionTick = this.ticks();
     }
@@ -722,10 +736,7 @@ export class GameView implements GameLike {
 
   isTileVisible(tile: TileRef): boolean {
     const vision = this.vision();
-    return (
-      vision === null ||
-      (tile >= 0 && tile < vision.length && vision[tile] !== 0)
-    );
+    return vision === null || this.fog!.isVisible(tile);
   }
 
   /** Renderer gets a masked copy; the deterministic simulation mirror stays intact. */
@@ -753,8 +764,8 @@ export class GameView implements GameLike {
         trailMax = -1,
         railDirty = first;
       const width = this.width();
-      const maskTrail = (tile: number) => {
-        const value = vision[tile] ? frame.trailState[tile] : 0;
+      const maskTrail = (tile: number, visible = this.fog!.isVisible(tile)) => {
+        const value = visible ? frame.trailState[tile] : 0;
         if (value === this.fogTrails![tile]) return;
         this.fogTrails![tile] = value;
         trailChanged.push(tile);
@@ -762,15 +773,15 @@ export class GameView implements GameLike {
         trailMin = Math.min(trailMin, row);
         trailMax = Math.max(trailMax, row);
       };
-      const maskRail = (tile: number) => {
-        const value = vision[tile] ? frame.railroadState[tile] : 0;
+      const maskRail = (tile: number, visible = this.fog!.isVisible(tile)) => {
+        const value = visible ? frame.railroadState[tile] : 0;
         if (value === this.fogRails![tile]) return;
         this.fogRails![tile] = value;
         railChanged.push(tile);
         railDirty = true;
       };
-      const maskTile = (tile: number) => {
-        const state = vision[tile] ? frame.tileState[tile] : FOG_BIT;
+      const maskTile = (tile: number, visible = this.fog!.isVisible(tile)) => {
+        const state = visible ? frame.tileState[tile] : FOG_BIT;
         if (state !== this.fogTiles![tile]) {
           if (!first) changed.push(tile);
           this.fogTiles![tile] = state;
@@ -784,12 +795,17 @@ export class GameView implements GameLike {
         const y0 = Math.floor(chunk / fog.chunkColumns) * fog.chunkSize;
         const x1 = Math.min(width, x0 + fog.chunkSize);
         const y1 = Math.min(this.height(), y0 + fog.chunkSize);
-        for (let y = y0; y < y1; y++)
-          for (let x = x0; x < x1; x++) {
-            const tile = y * width + x;
-            maskTile(tile);
-            maskTrail(tile);
-            maskRail(tile);
+        const scale = this._config.fogOfWarScale();
+        for (let cy = y0; cy < y1; cy += scale)
+          for (let cx = x0; cx < x1; cx += scale) {
+            const visible = fog.isVisible(cy * width + cx);
+            for (let y = cy; y < Math.min(y1, cy + scale); y++)
+              for (let x = cx; x < Math.min(x1, cx + scale); x++) {
+                const tile = y * width + x;
+                maskTile(tile, visible);
+                maskTrail(tile, visible);
+                maskRail(tile, visible);
+              }
           }
       }
       for (const tile of this.fogPendingTiles) maskTile(tile);
@@ -813,7 +829,7 @@ export class GameView implements GameLike {
       this.fogStructuresDirty = false;
       const at = (x: number, y: number) =>
         this.isValidCoord(Math.floor(x), Math.floor(y)) &&
-        vision[this.ref(Math.floor(x), Math.floor(y))] !== 0;
+        this.fog!.isVisible(this.ref(Math.floor(x), Math.floor(y)));
       result = {
         ...result,
         tileState: this.fogTiles,
@@ -825,8 +841,8 @@ export class GameView implements GameLike {
         railroadDirty: railDirty,
         trailChangedTiles: trailChanged,
         railroadChangedTiles: first ? undefined : railChanged,
-        revealedRailTiles: frame.revealedRailTiles.filter(
-          (t) => vision[t] !== 0,
+        revealedRailTiles: frame.revealedRailTiles.filter((t) =>
+          this.fog!.isVisible(t),
         ),
         structuresDirty,
         names: new Map(
@@ -840,12 +856,14 @@ export class GameView implements GameLike {
         // cosmetic ribbon; the regular per-tile trail is masked above.
         spiralRibbons: [],
         events: {
-          deadUnits: frame.events.deadUnits.filter((e) => vision[e.pos] !== 0),
+          deadUnits: frame.events.deadUnits.filter((e) =>
+            this.fog!.isVisible(e.pos),
+          ),
           conquestEvents: frame.events.conquestEvents.filter((e) =>
             at(e.x, e.y),
           ),
-          bonusEvents: frame.events.bonusEvents.filter(
-            (e) => vision[e.tile] !== 0,
+          bonusEvents: frame.events.bonusEvents.filter((e) =>
+            this.fog!.isVisible(e.tile),
           ),
         },
       };
