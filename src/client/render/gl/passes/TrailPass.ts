@@ -1,7 +1,7 @@
 /**
  * TrailPass — boat + nuke trail lines.
  *
- * Owns the dirty-row bookkeeping for partial GPU uploads and the trail
+ * Owns sparse pixel updates (and legacy row uploads) and the trail
  * fragment shader that draws the colored breadcrumb behind moving units.
  * Trail state itself (R16UI: 0=none, bits 0-11=ownerID, bit 12=nuke trail)
  * is referenced from the caller's array, not copied.
@@ -11,6 +11,7 @@ import type { RenderSettings } from "../RenderSettings";
 import { getPaletteSize, MAX_TRAIL_COLORS } from "../utils/ColorUtils";
 import { createMapQuad, createProgram, shaderSrc } from "../utils/GlUtils";
 import { TILE_DEFINES } from "../utils/TileCodec";
+import { IntegerTextureUpdates } from "./IntegerTextureUpdates";
 
 import overlayVertSrc from "../shaders/map-overlay/overlay.vert.glsl?raw";
 import trailFragSrc from "../shaders/map-overlay/trail.frag.glsl?raw";
@@ -38,19 +39,7 @@ export class TrailPass {
   // so the value stays small and sin()/fract() don't quantize over long sessions.
   private readonly startTime = performance.now();
 
-  private trailsDirty = false;
-
-  /**
-   * Reference to the caller-owned trail state (R16UI: 0=none, owner in bits
-   * 0-11, nuke bit 12). Every upload entry point provides it, so the pass
-   * keeps no copy of its own; the caller's array must stay current until the
-   * flush. Null until the first upload.
-   */
-  private liveTrailRef: Uint16Array | null = null;
-
-  /** Dirty row range for partial trail upload. Infinity/-1 = full upload. */
-  private dirtyRowMin = Infinity;
-  private dirtyRowMax = -1;
+  private readonly updates: IntegerTextureUpdates;
 
   constructor(
     gl: WebGL2RenderingContext,
@@ -62,6 +51,13 @@ export class TrailPass {
     settings: RenderSettings,
   ) {
     this.gl = gl;
+    this.updates = new IntegerTextureUpdates(
+      gl,
+      mapW,
+      mapH,
+      trailTex,
+      gl.UNSIGNED_SHORT,
+    );
     this.settings = settings;
     this.mapW = mapW;
     this.mapH = mapH;
@@ -107,71 +103,21 @@ export class TrailPass {
 
   /** Live-game path: reference the game's own trail array directly. */
   setLiveRef(trailState: Uint16Array): void {
-    this.liveTrailRef = trailState;
-    this.trailsDirty = true;
+    this.updates.full(trailState);
   }
 
-  /** Live trail delta: update live ref + accept dirty row range from TrailManager. */
   applyLiveDelta(
     trailState: Uint16Array,
     dirtyRowMin: number,
     dirtyRowMax: number,
+    changedTiles?: readonly number[],
   ): void {
-    this.liveTrailRef = trailState;
-    if (dirtyRowMax >= 0) {
-      const isFullUploadPending = this.trailsDirty && this.dirtyRowMax < 0;
-      // If a full upload is already pending, don't narrow the bounds to the delta
-      if (!isFullUploadPending) {
-        this.dirtyRowMin = Math.min(this.dirtyRowMin, dirtyRowMin);
-        this.dirtyRowMax = Math.max(this.dirtyRowMax, dirtyRowMax);
-      }
-    }
-    this.trailsDirty = true;
+    if (changedTiles) this.updates.patch(trailState, changedTiles);
+    else this.updates.rows(trailState, dirtyRowMin, dirtyRowMax);
   }
 
-  /** Flush trail texture to GPU. Called once per render frame in uploadTextures. */
   flushTexture(): void {
-    if (!this.trailsDirty) return;
-    const src = this.liveTrailRef;
-    if (src === null) return; // dirty is only ever set alongside the ref
-    const gl = this.gl;
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, this.trailTex);
-
-    if (this.dirtyRowMax >= 0) {
-      // Partial upload — only dirty rows
-      const minRow = this.dirtyRowMin;
-      const rowCount = this.dirtyRowMax - minRow + 1;
-      const offset = minRow * this.mapW;
-      gl.texSubImage2D(
-        gl.TEXTURE_2D,
-        0,
-        0,
-        minRow,
-        this.mapW,
-        rowCount,
-        gl.RED_INTEGER,
-        gl.UNSIGNED_SHORT,
-        src.subarray(offset, offset + rowCount * this.mapW),
-      );
-    } else {
-      // Full upload (first tick, seek, replay, etc.)
-      gl.texSubImage2D(
-        gl.TEXTURE_2D,
-        0,
-        0,
-        0,
-        this.mapW,
-        this.mapH,
-        gl.RED_INTEGER,
-        gl.UNSIGNED_SHORT,
-        src,
-      );
-    }
-
-    this.dirtyRowMin = Infinity;
-    this.dirtyRowMax = -1;
-    this.trailsDirty = false;
+    this.updates.flush();
   }
 
   /** Draw trail overlay. Blending must be enabled by caller. */
@@ -203,6 +149,7 @@ export class TrailPass {
 
   dispose(): void {
     const gl = this.gl;
+    this.updates.dispose();
     gl.deleteProgram(this.program);
     gl.deleteVertexArray(this.vao);
   }

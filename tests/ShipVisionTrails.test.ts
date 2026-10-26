@@ -6,6 +6,7 @@ it("matches brute force through dense mixed-owner trails, expiry, refresh, and r
   const width = 257,
     height = 149;
   let trails = new ShipVisionTrails(width);
+  const reference = new Map<string, [number, number, number, number]>();
   let seed = 31415;
   const random = () => {
     seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
@@ -18,7 +19,24 @@ it("matches brute force through dense mixed-owner trails, expiry, refresh, and r
       radius: [10, 20, 35, 70][random() % 4],
     }));
     sources.push({ owner: 1, pos: 0, radius: 10 });
+    for (const [key, entry] of reference) {
+      if (tick - entry[3] >= SHIP_VISION_LINGER_TICKS) reference.delete(key);
+    }
+    for (const { owner, pos, radius } of sources) {
+      reference.set(`${owner}:${pos}:${radius}`, [owner, pos, radius, tick]);
+    }
     trails.record(tick, sources);
+    expect(trails.snapshot()).toEqual([...reference.values()]);
+    const friendlyOwners = new Set(tick % 10 === 0 ? [1, 2] : [2]);
+    const expectedSources = [...reference.values()]
+      .filter(([owner]) => friendlyOwners.has(owner))
+      .map(([, pos, radius]) => `${pos}:${radius}`)
+      .sort();
+    expect(
+      [...trails.sources(tick, friendlyOwners)]
+        .map(({ pos, radius }) => `${pos}:${radius}`)
+        .sort(),
+    ).toEqual(expectedSources);
     const snapshot = trails.snapshot();
     if (tick % 25 === 0) {
       trails = new ShipVisionTrails(width);

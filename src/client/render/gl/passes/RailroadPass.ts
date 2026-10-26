@@ -33,6 +33,7 @@ import {
   shaderSrc,
 } from "../utils/GlUtils";
 import { TILE_DEFINES } from "../utils/TileCodec";
+import { IntegerTextureUpdates } from "./IntegerTextureUpdates";
 
 // ---------------------------------------------------------------------------
 // Rail orientation (0-5) → texture value (1-6, 0=none)
@@ -121,8 +122,7 @@ export class RailroadPass {
    * stable identity, mutated in place). The pass keeps no copy — the array
    * must stay current until the flush. Null until the first upload.
    */
-  private liveRailroadRef: Uint8Array | null = null;
-  private railroadDirty = false;
+  private readonly updates: IntegerTextureUpdates;
 
   /**
    * Current ghost overlay content, sparse: tile ref → texel value (1-6 =
@@ -241,11 +241,25 @@ export class RailroadPass {
     });
 
     this.vao = createMapQuad(gl, mapW, mapH);
+    this.updates = new IntegerTextureUpdates(
+      gl,
+      mapW,
+      mapH,
+      this.railroadTex,
+      gl.UNSIGNED_BYTE,
+    );
   }
 
-  uploadRailroadState(railroadState: Uint8Array): void {
-    this.liveRailroadRef = railroadState;
-    this.railroadDirty = true;
+  uploadRailroadState(
+    state: Uint8Array,
+    changedTiles?: readonly number[],
+  ): void {
+    if (changedTiles) this.updates.patch(state, changedTiles);
+    else this.updates.full(state);
+  }
+
+  flushTexture(): void {
+    this.updates.flush();
   }
 
   setLocalPlayer(smallID: number): void {
@@ -352,23 +366,7 @@ export class RailroadPass {
         : Math.min(1, Math.max(0, (zoom - fadeStart) / fadeRange));
     if (fade <= 0) return;
 
-    // Flush railroad state → GPU
-    if (this.railroadDirty && this.liveRailroadRef !== null) {
-      gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, this.railroadTex);
-      gl.texSubImage2D(
-        gl.TEXTURE_2D,
-        0,
-        0,
-        0,
-        this.mapW,
-        this.mapH,
-        gl.RED_INTEGER,
-        gl.UNSIGNED_BYTE,
-        this.liveRailroadRef,
-      );
-      this.railroadDirty = false;
-    }
+    this.flushTexture();
 
     gl.useProgram(this.program);
     gl.uniformMatrix3fv(this.uCamera, false, cameraMatrix);
@@ -475,6 +473,7 @@ export class RailroadPass {
 
   dispose(): void {
     const gl = this.gl;
+    this.updates.dispose();
     gl.deleteProgram(this.program);
     gl.deleteTexture(this.railroadTex);
     gl.deleteTexture(this.ghostRailTex);

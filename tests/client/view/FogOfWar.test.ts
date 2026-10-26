@@ -559,4 +559,36 @@ it("retains sparse trail and rail edits across skipped frames with unchanged vis
   expect(frame.trailDirtyRowMin).toBe(20);
   expect(frame.trailDirtyRowMax).toBe(20);
   expect(frame.railroadDirty).toBe(true);
+  expect(frame.trailChangedTiles).toContain(tile);
+  expect(frame.railroadChangedTiles).toContain(tile);
+});
+
+it("updates alliance coverage locally, including ownership changes on the same tick", () => {
+  const width = 512,
+    height = 512;
+  const owners = new Uint16Array(width * height);
+  const tile = 130 * width + 130;
+  owners[tile] = 2;
+  const fog = new FogOfWar(width, height),
+    full = new FogOfWar(width, height);
+  fog.update(owners, new Set([1]), [], []);
+  fog.update(owners, new Set([1, 2]), [], []);
+  expect(fog.visible[tile + 20]).toBeGreaterThan(0);
+  expect(fog.dirtyChunks.size).toBeLessThan(16);
+  expect(fog.dirtyChunks.has(63)).toBe(false);
+  owners[tile] = 3;
+  fog.update(
+    owners,
+    new Set([1, 3]),
+    [],
+    (function* () {
+      yield tile;
+    })(),
+  );
+  expect(fog.visible[tile + 20]).toBeGreaterThan(0);
+  fog.update(owners, new Set([1]), [], []);
+  full.update(owners, new Set([1]), []);
+  expect(fog.visible.every((value, i) => value === full.visible[i])).toBe(true);
+  expect(fog.visible[tile]).toBe(0);
+  expect(fog.dirtyChunks.size).toBeLessThan(16);
 });

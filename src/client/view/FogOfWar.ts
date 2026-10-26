@@ -17,6 +17,7 @@ export class FogOfWar {
   readonly visible: Uint8Array;
   private readonly changedChunks = new Set<number>();
   private sources = new Map<string, VisionSource>();
+  private sourceChunks = new Set<number>();
   private previousSources = new Map<string, VisionSource>();
 
   get dirtyChunks(): ReadonlySet<number> {
@@ -32,6 +33,32 @@ export class FogOfWar {
   private readonly territory: Uint8Array;
   private readonly friendlyTiles: Uint8Array;
   private readonly friendlyLookup = new Uint8Array(4096);
+  // Conservative owner-to-chunk index: historical owners may stay listed,
+  // but new ownership is indexed immediately, so coverage is never missed.
+  private readonly ownerChunks = new Map<number, Set<number>>();
+
+  private indexOwner(tile: number, owner: number): void {
+    if (owner === 0) return;
+    let chunks = this.ownerChunks.get(owner);
+    if (!chunks) this.ownerChunks.set(owner, (chunks = new Set()));
+    chunks.add(
+      Math.floor(Math.floor(tile / this.width) / this.chunkSize) *
+        this.chunkColumns +
+        Math.floor((tile % this.width) / this.chunkSize),
+    );
+  }
+
+  private expandChunk(chunks: Set<number>, chunk: number): void {
+    const x = (chunk % this.chunkColumns) * this.chunkSize;
+    const y = Math.floor(chunk / this.chunkColumns) * this.chunkSize;
+    this.markChunks(
+      chunks,
+      x - TERRITORY_VISION,
+      y - TERRITORY_VISION,
+      x + this.chunkSize - 1 + TERRITORY_VISION,
+      y + this.chunkSize - 1 + TERRITORY_VISION,
+    );
+  }
   private friendlyKey: string | undefined;
   private readonly distances = new Uint8Array((64 + TERRITORY_VISION * 2) ** 2);
   private readonly queue: Int32Array;
@@ -56,9 +83,12 @@ export class FogOfWar {
     this.changedChunks.clear();
     this.previousSources = this.sources;
     this.sources = new Map();
-    if (key !== this.friendlyKey || changedTiles === undefined) {
+    const resetChunks = this.sourceChunks;
+    this.sourceChunks = new Set();
+    if (this.friendlyKey === undefined || changedTiles === undefined) {
       this.friendlyKey = key;
       this.rebuildTerritory(owners, friendly);
+      this.visible.set(this.territory);
       this.markChunks(
         this.changedChunks,
         0,
@@ -68,7 +98,42 @@ export class FogOfWar {
       );
     } else {
       const chunks = new Set<number>();
-      for (const tile of changedTiles) {
+      const changes =
+        changedTiles instanceof Set || Array.isArray(changedTiles)
+          ? changedTiles
+          : Array.from(changedTiles);
+      for (const tile of changes) this.indexOwner(tile, owners[tile] & 0xfff);
+      if (key !== this.friendlyKey) {
+        const rosterChunks = new Set<number>();
+        for (let owner = 1; owner < this.friendlyLookup.length; owner++) {
+          const value = friendly.has(owner) ? 1 : 0;
+          if (this.friendlyLookup[owner] === value) continue;
+          for (const chunk of this.ownerChunks.get(owner) ?? [])
+            rosterChunks.add(chunk);
+          this.friendlyLookup[owner] = value;
+        }
+        for (const chunk of rosterChunks) {
+          this.expandChunk(chunks, chunk);
+          const x = (chunk % this.chunkColumns) * this.chunkSize;
+          const y = Math.floor(chunk / this.chunkColumns) * this.chunkSize;
+          for (
+            let row = y;
+            row < Math.min(this.height, y + this.chunkSize);
+            row++
+          )
+            for (
+              let col = x;
+              col < Math.min(this.width, x + this.chunkSize);
+              col++
+            ) {
+              const tile = row * this.width + col;
+              this.friendlyTiles[tile] =
+                this.friendlyLookup[owners[tile] & 0xfff];
+            }
+        }
+        this.friendlyKey = key;
+      }
+      for (const tile of changes) {
         const own = this.friendlyLookup[owners[tile] & 0xfff];
         if (own === this.friendlyTiles[tile]) continue;
         this.friendlyTiles[tile] = own;
@@ -85,9 +150,24 @@ export class FogOfWar {
       for (const chunk of chunks) {
         this.rebuildChunk(owners, chunk);
         this.changedChunks.add(chunk);
+        resetChunks.add(chunk);
+      }
+      // Restore only last tick's source coverage and changed territory. On
+      // Giant World, copying the entire visibility map here costs 8 MB/tick.
+      for (const chunk of resetChunks) {
+        const x = (chunk % this.chunkColumns) * this.chunkSize;
+        const y = Math.floor(chunk / this.chunkColumns) * this.chunkSize;
+        const endX = Math.min(this.width, x + this.chunkSize);
+        const endY = Math.min(this.height, y + this.chunkSize);
+        for (let row = y; row < endY; row++) {
+          const start = row * this.width + x;
+          this.visible.set(
+            this.territory.subarray(start, row * this.width + endX),
+            start,
+          );
+        }
       }
     }
-    this.visible.set(this.territory);
     this.addSources(sources);
     return this.visible;
   }
@@ -159,11 +239,13 @@ export class FogOfWar {
   ): void {
     const { territory: visible, width, queue, friendlyLookup } = this;
     visible.fill(0);
+    this.ownerChunks.clear();
     friendlyLookup.fill(0);
     for (const owner of friendly) friendlyLookup[owner] = 1;
     // Seed all friendly territory, but only enqueue its frontier. Each exterior
     // tile is visited once, regardless of empire size or overlapping borders.
     for (let tile = 0; tile < visible.length; tile++) {
+      this.indexOwner(tile, owners[tile] & 0xfff);
       this.friendlyTiles[tile] = friendlyLookup[owners[tile] & 0xfff];
       if (friendlyLookup[owners[tile] & 0xfff])
         visible[tile] = TERRITORY_VISION + 1;
@@ -223,6 +305,7 @@ export class FogOfWar {
       const key = `${pos}:${radius}:${wrap ? 1 : 0}`;
       if (this.sources.has(key)) continue;
       this.sources.set(key, { pos, radius, wrap });
+      this.markSourceChunks(this.sourceChunks, source);
       if (!this.previousSources.delete(key)) {
         this.markSourceChunks(this.changedChunks, source);
       }

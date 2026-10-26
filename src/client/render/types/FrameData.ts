@@ -42,6 +42,9 @@ export interface FrameData {
    * - array → only these tiles changed (empty = skip upload)
    */
   readonly changedTiles: readonly number[] | null;
+  /** Exact texture changes; absent for legacy/replay producers. */
+  readonly trailChangedTiles?: readonly number[];
+  readonly railroadChangedTiles?: readonly number[];
   readonly railroadDirty: boolean;
   readonly revealedRailTiles: number[];
 

@@ -195,3 +195,7 @@ The ship-trail cost is reduced rather than eliminated. Very dense friendly trail
 still require exact circle tests, and Hard/Impossible naval pathfinding can remain
 expensive. This pass does not change how often the AI plans, reduce candidate
 counts, or grant it information hidden by fog.
+
+
+Giant World was subsequently profiled separately, including real GPU uploads and
+a ten-minute match: see [Giant World performance](GiantWorldPerformance.md).

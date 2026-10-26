@@ -1,5 +1,5 @@
 /**
- * TileScatterPass — GPU-side scatter writes into the R16UI tile texture.
+ * TileScatterPass — GPU-side scatter writes into an R8UI or R16UI texture.
  *
  * Replaces per-frame texSubImage2D bbox uploads with a single small attribute
  * buffer upload + one POINTS draw call into an FBO bound to tileTex. Constant

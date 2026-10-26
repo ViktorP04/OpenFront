@@ -732,8 +732,14 @@ export class GPURenderer {
     trailState: Uint16Array,
     dirtyRowMin: number,
     dirtyRowMax: number,
+    changedTiles?: readonly number[],
   ): void {
-    this.trailPass.applyLiveDelta(trailState, dirtyRowMin, dirtyRowMax);
+    this.trailPass.applyLiveDelta(
+      trailState,
+      dirtyRowMin,
+      dirtyRowMax,
+      changedTiles,
+    );
   }
 
   /** Adopt this tick's spiral nukeTrail ribbons (live refs from SpiralTrails). */
@@ -924,8 +930,11 @@ export class GPURenderer {
     );
   }
 
-  uploadRailroadState(data: Uint8Array): void {
-    this.railroadPass.uploadRailroadState(data);
+  uploadRailroadState(
+    data: Uint8Array,
+    changedTiles?: readonly number[],
+  ): void {
+    this.railroadPass.uploadRailroadState(data, changedTiles);
   }
 
   updateUnits(units: Map<number, UnitState>, gameTick: number): void {
@@ -1325,6 +1334,7 @@ export class GPURenderer {
       this.heatManager.activate();
     }
     this.trailPass.flushTexture();
+    this.railroadPass.flushTexture();
     this.heatManager.updateHeat();
   }
 

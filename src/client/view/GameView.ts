@@ -567,6 +567,10 @@ export class GameView implements GameLike {
     f.railroadDirty = this.railroadCache.railroadDirty;
     f.trailDirtyRowMin = this.trailManager.dirtyRowMin;
     f.trailDirtyRowMax = this.trailManager.dirtyRowMax;
+    f.trailChangedTiles = Array.from(this.trailManager.changedTiles);
+    f.railroadChangedTiles = this._firstPopulate
+      ? undefined
+      : Array.from(this.railroadCache.changedTiles);
 
     f.playerStatus = computePlayerStatus(this._playerStates, this._unitStates, {
       localPlayerSmallID: this._myPlayer?.smallID() ?? 0,
@@ -743,6 +747,8 @@ export class GameView implements GameLike {
       this.fogTrails ??= new Uint16Array(frame.trailState.length);
       this.fogRails ??= new Uint8Array(frame.railroadState.length);
       const changed: number[] = [];
+      const trailChanged: number[] = [],
+        railChanged: number[] = [];
       let trailMin = Infinity,
         trailMax = -1,
         railDirty = first;
@@ -751,6 +757,7 @@ export class GameView implements GameLike {
         const value = vision[tile] ? frame.trailState[tile] : 0;
         if (value === this.fogTrails![tile]) return;
         this.fogTrails![tile] = value;
+        trailChanged.push(tile);
         const row = Math.floor(tile / width);
         trailMin = Math.min(trailMin, row);
         trailMax = Math.max(trailMax, row);
@@ -759,6 +766,7 @@ export class GameView implements GameLike {
         const value = vision[tile] ? frame.railroadState[tile] : 0;
         if (value === this.fogRails![tile]) return;
         this.fogRails![tile] = value;
+        railChanged.push(tile);
         railDirty = true;
       };
       const maskTile = (tile: number) => {
@@ -815,6 +823,8 @@ export class GameView implements GameLike {
         trailDirtyRowMin: Number.isFinite(trailMin) ? trailMin : 0,
         trailDirtyRowMax: trailMax,
         railroadDirty: railDirty,
+        trailChangedTiles: trailChanged,
+        railroadChangedTiles: first ? undefined : railChanged,
         revealedRailTiles: frame.revealedRailTiles.filter(
           (t) => vision[t] !== 0,
         ),
@@ -843,6 +853,7 @@ export class GameView implements GameLike {
       result = {
         ...result,
         changedTiles: null,
+        railroadChangedTiles: undefined,
         railroadDirty: true,
         structuresDirty: true,
       };

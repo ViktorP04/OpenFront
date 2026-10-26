@@ -4,7 +4,7 @@ precision highp int;
 
 flat in uint vState;
 
-// R16UI color attachment — integer output type required.
+// R8UI/R16UI color attachment — integer output type required.
 layout(location = 0) out uvec4 fragColor;
 
 void main() {

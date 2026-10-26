@@ -54,6 +54,11 @@ export function createTileVisionQuery(
   const trails = game.shipVisionTrails();
   let satellites: Unit[] | undefined;
   let radars: Unit[] | undefined;
+  let localChecks = 0;
+  let localSources:
+    | { x: number; y: number; radiusSquared: number }[]
+    | null
+    | undefined;
   return (tile) => {
     if (!game.isValidRef(tile)) return false;
     satellites ??= game.units(UnitType.Satellite);
@@ -83,7 +88,38 @@ export function createTileVisionQuery(
       )
     )
       return true;
-    if (
+    // Large shore filters ask thousands of negative point queries. After a
+    // few probes, a short list of friendly circles beats probing the global
+    // grid for every unit type. Independent point queries retain the grid.
+    if (++localChecks === 8) {
+      localSources = game
+        .units(LOCAL_SOURCES)
+        .filter(
+          (unit) =>
+            unit.isActive() &&
+            !unit.isUnderConstruction() &&
+            friendlyOwner(unit.owner().smallID()),
+        )
+        .map((unit) => ({
+          x: game.x(unit.tile()),
+          y: game.y(unit.tile()),
+          radiusSquared:
+            Math.min(
+              LOCAL_RANGE,
+              unitVisionRadius(unit.type(), unit.level()),
+            ) ** 2,
+        }));
+      // With many allies or a large fleet, retain the spatial grid instead.
+      if (localSources.length > 64) localSources = null;
+    }
+    if (localSources) {
+      const x = game.x(tile),
+        y = game.y(tile);
+      for (const source of localSources) {
+        if ((source.x - x) ** 2 + (source.y - y) ** 2 <= source.radiusSquared)
+          return true;
+      }
+    } else if (
       game.anyUnitNearby(tile, LOCAL_RANGE, LOCAL_SOURCES, (unit) => {
         const radius = unitVisionRadius(unit.type(), unit.level());
         return (

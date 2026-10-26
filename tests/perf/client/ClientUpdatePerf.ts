@@ -75,6 +75,7 @@ const FRAME_BUDGET_MS = 16.7;
 interface Options {
   fog: boolean;
   observe: boolean;
+  followLiving: boolean;
   map: GameMapType;
   ticks: number;
   bots: number;
@@ -101,6 +102,7 @@ function parseArgs(argv: string[]): Options {
   const opts: Options = {
     fog: false,
     observe: false,
+    followLiving: false,
     map: GameMapType.World,
     ticks: 1800,
     bots: 400,
@@ -120,6 +122,9 @@ function parseArgs(argv: string[]): Options {
       case "--fog":
         opts.fog = true;
         opts.observe = true;
+        break;
+      case "--follow-living":
+        opts.followLiving = true;
         break;
       case "--observe":
         opts.observe = true;
@@ -162,7 +167,7 @@ function parseArgs(argv: string[]): Options {
 // a method not stubbed here throws — that's intentional (fail loudly when
 // the upload surface grows).
 
-function createGlStub() {
+function createGlStub(mapHeight: number) {
   const counts = new Map<string, number>();
   let unitsSeen = 0;
   let namesSeen = 0;
@@ -189,21 +194,38 @@ function createGlStub() {
     applyTerrainRects: (rects: unknown[]) =>
       bump("applyTerrainRects", rects.length),
     // uploadFrameData dispatch targets (FrameUploadTarget)
-    uploadTileAndTrailState: noop("uploadTileAndTrailState"),
+    uploadTileAndTrailState: (_tiles: Uint16Array, trails: Uint16Array) => {
+      bump("uploadTileAndTrailState");
+      bump("trailUploadBytes", trails.byteLength);
+    },
     uploadLiveDelta: (_: unknown, changed: unknown[]) => {
       bump("uploadLiveDelta");
       changedTilesSeen += changed.length;
     },
-    uploadLiveTrailDelta: (_data: Uint16Array, min: number, max: number) => {
+    uploadLiveTrailDelta: (
+      data: Uint16Array,
+      min: number,
+      max: number,
+      refs?: readonly number[],
+    ) => {
       bump("uploadLiveTrailDelta");
       // Count rows independently of map dimensions.
       bump("trailUploadRows", max - min + 1);
+      bump(
+        "trailUploadBytes",
+        refs
+          ? Math.min(data.byteLength, refs.length * 12)
+          : ((max - min + 1) * data.byteLength) / mapHeight,
+      );
     },
     applyFullTiles: noop("applyFullTiles"),
     applyDelta: noop("applyDelta"),
-    uploadRailroadState: (data: Uint8Array) => {
+    uploadRailroadState: (data: Uint8Array, refs?: readonly number[]) => {
       bump("uploadRailroadState");
-      bump("railroadUploadBytes", data.byteLength);
+      bump(
+        "railroadUploadBytes",
+        refs ? Math.min(data.byteLength, refs.length * 12) : data.byteLength,
+      );
     },
     applyRailroadDust: noop("applyRailroadDust"),
     updateUnits: (units: ReadonlyMap<number, unknown>) => {
@@ -400,14 +422,19 @@ async function main(): Promise<void> {
   if (opts.observe) {
     let observedID: string | undefined;
     gameView.myPlayer = () => {
-      observedID ??= gameView
-        .players()
-        .find((p) => p.isAlive())
-        ?.id();
+      if (
+        observedID === undefined ||
+        (opts.followLiving && !gameView.player(observedID).isAlive())
+      ) {
+        observedID = gameView
+          .players()
+          .find((p) => p.isAlive())
+          ?.id();
+      }
       return observedID ? gameView.player(observedID) : null;
     };
   }
-  const glStub = createGlStub();
+  const glStub = createGlStub(gameView.height());
   const builder = new WebGLFrameBuilder(
     glStub.view as unknown as ConstructorParameters<
       typeof WebGLFrameBuilder
@@ -562,6 +589,10 @@ async function main(): Promise<void> {
     `Sim final hash:   ${lastHash ? `${lastHash.hash} (tick ${lastHash.tick})` : "n/a"}`,
   );
   console.log(`View hash:        ${computeViewHash(gameView)}`);
+  if (opts.observe)
+    console.log(
+      `Observed faction: ${gameView.myPlayer()?.id()}, alive=${gameView.myPlayer()?.isAlive()}, followLiving=${opts.followLiving}`,
+    );
   console.log(`Peak heap:        ${(heapPeak / 1024 / 1024).toFixed(0)} MB`);
 
   console.log(
@@ -630,7 +661,7 @@ async function main(): Promise<void> {
   );
 
   console.log(
-    `Texture uploads (whole run): trail rows=${glStub.counts.get("trailUploadRows") ?? 0}, ` +
+    `Texture dispatch estimates (whole run): trail bytes=${glStub.counts.get("trailUploadBytes") ?? 0}, trail rows=${glStub.counts.get("trailUploadRows") ?? 0}, ` +
       `railroad bytes=${glStub.counts.get("railroadUploadBytes") ?? 0}`,
   );
 
