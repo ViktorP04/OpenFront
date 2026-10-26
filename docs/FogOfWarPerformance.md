@@ -131,3 +131,67 @@ Some worst-case simulation ticks still exceed 100 ms. The next useful targets
 are ship-trail point queries and AI naval planning, guided by a fresh profile
 of the affected match. Actual browser traces remain necessary to diagnose GPU,
 HUD, network, and device-specific pauses.
+
+
+## Third pass: ship trails and naval planning (2026-10-26)
+
+The baseline is commit `11d71a48b`. Initial profiling identified ship-trail point
+queries as a major remaining cost under AI boat-route planning. A planner checks
+all candidate shore tiles; previously each point rebuilt diplomacy lookup state
+and fetched satellite/radar lists again. Each trail point query also resolved
+friendliness for individual samples and recomputed their coordinates.
+
+Changes:
+
+- Each spatial trail cell groups samples by owner. Negative diplomacy checks skip
+  an entire owner's samples. Coordinates and squared radius are computed when a
+  sample enters the index, rather than at every point query. Refreshes retain the
+  same indexed entry, and expiry removes empty owner groups/cells.
+- A batch query context shares diplomacy lookups and lazily fetched radar/satellite
+  lists during one synchronous, read-only planning operation. Candidate shores,
+  random boat destinations, scout destinations, and hostile-warship filtering use
+  these contexts. They are discarded before returning to simulation actions;
+  independent point queries still create fresh contexts, so same-tick captures
+  and alliance changes remain immediate.
+- Candidate order, random draws, search limits, routes, and visibility rules are
+  unchanged. Cached trail indexing does not alter snapshot contents/order.
+- The performance harness now prints simulation functions as well as client
+  functions, making future naval profiles easier to inspect.
+
+Regression coverage compares mixed-owner trail queries against brute-force checks
+through expiry, refresh, restore, and changing friendly owners. It also checks
+that a dense owner group resolves diplomacy once and expired samples do not
+resolve diplomacy. Batched queries match the client mask and independent queries;
+existing AI scouting, combat, targeting, and snapshot tests continue to apply.
+
+Use the 1,800-tick World command from the second pass to reproduce. The comparison
+runs are sequential with V8 sampling enabled. Overall wall timings vary with host
+load; they measure this CPU harness, not browser frame rate or network performance.
+
+
+Latest paired profile (same 1,800 ticks, default World/400 bots/Medium):
+
+| Sampled CPU time across run | Baseline | Optimized |
+| --- | ---: | ---: |
+| Ship-trail `hasVision`, self time | 1,401 ms | 345 ms |
+| `planBoatRoute`, inclusive time | 3,597 ms | 2,360 ms |
+| `findRandomBoatTarget`, inclusive time | 245 ms | 230 ms |
+
+Inclusive planning time includes its visibility checks; these numbers must not
+be added together. The targeted samples show approximately 75% less trail-query
+self time and 34% less total boat-route planning time in this pair. These are
+V8 sampling estimates, not instrumented exact timings.
+
+Both versions finish with simulation hash `27626989507481190` at tick 2000,
+view hash `1b91d210`, 78 living players, and 289 mirrored units. Payload counts
+also match. Repeated optimized runs produced simulation averages of 6.01–12.9 ms
+per tick; baseline repeats ranged from 8.34–14.8 ms. In the latest pair the overall
+simulation mean rose from 8.34 to 12.9 ms even though the targeted CPU samples
+fell, and the unchanged main-thread path rose from 1.78 to 3.22 ms. This variability
+prevents a reliable whole-match speedup claim. Actual device/browser traces and
+more controlled timing are still needed; no FPS improvement is claimed.
+
+The ship-trail cost is reduced rather than eliminated. Very dense friendly trails
+still require exact circle tests, and Hard/Impossible naval pathfinding can remain
+expensive. This pass does not change how often the AI plans, reduce candidate
+counts, or grant it information hidden by fog.

@@ -14,7 +14,10 @@ import { NationCustomUnitBehavior } from "@openfront/engine/execution/nation/Nat
 import { NationEmojiBehavior } from "@openfront/engine/execution/nation/NationEmojiBehavior";
 import { NationWarshipBehavior } from "@openfront/engine/execution/nation/NationWarshipBehavior";
 import { TransportShipExecution } from "@openfront/engine/execution/TransportShipExecution";
-import { hasTileVision } from "@openfront/engine/game/FogOfWar";
+import {
+  createTileVisionQuery,
+  hasTileVision,
+} from "@openfront/engine/game/FogOfWar";
 import { Game, Player } from "@openfront/engine/game/Game";
 import { createGame } from "@openfront/engine/game/GameImpl";
 import {
@@ -310,12 +313,12 @@ it("matches the client vision mask across territory, trade ships, scouts, and ra
     radius: unitVisionRadius(u.type(), u.level()),
   }));
   const vision = mask.update(owners, new Set([ai.smallID()]), sources);
+  const visible = createTileVisionQuery(game, ai);
   for (let y = 0; y < game.height(); y += 7)
     for (let x = 0; x < game.width(); x += 7) {
       const tile = at(x, y);
-      expect(hasTileVision(game, ai, tile), `tile ${x},${y}`).toBe(
-        vision[tile] !== 0,
-      );
+      expect(visible(tile), `tile ${x},${y}`).toBe(vision[tile] !== 0);
+      expect(visible(tile)).toBe(hasTileVision(game, ai, tile));
     }
 });
 

@@ -13,18 +13,30 @@ export function shipVisionRadius(type: string): number {
     : 0;
 }
 
+interface IndexedTrail {
+  entry: ShipVisionTrail;
+  x: number;
+  y: number;
+  radiusSquared: number;
+}
+
+type TrailCell = Map<number, Map<string, IndexedTrail>>;
+
 /** Sparse recent circles, shared by simulation queries and the client mask.
  * Stationary ships refresh one entry rather than appending every tick.
  */
 export class ShipVisionTrails {
   private entries = new Map<string, ShipVisionTrail>();
-  private cells = new Map<number, Map<string, ShipVisionTrail>>();
-  constructor(private width: number) {}
+  private cells = new Map<number, TrailCell>();
+  private readonly columns: number;
+  constructor(private width: number) {
+    this.columns = Math.ceil(width / 64);
+  }
 
   private cell(pos: number): number {
     return (
       Math.floor((pos % this.width) / 64) +
-      Math.floor(Math.floor(pos / this.width) / 64) * Math.ceil(this.width / 64)
+      Math.floor(Math.floor(pos / this.width) / 64) * this.columns
     );
   }
 
@@ -35,9 +47,12 @@ export class ShipVisionTrails {
     for (const [key, entry] of this.entries) {
       if (tick - entry[3] < SHIP_VISION_LINGER_TICKS) continue;
       this.entries.delete(key);
-      const cell = this.cells.get(this.cell(entry[1]));
-      cell?.delete(key);
-      if (cell?.size === 0) this.cells.delete(this.cell(entry[1]));
+      const cellID = this.cell(entry[1]);
+      const cell = this.cells.get(cellID);
+      const ownerTrails = cell?.get(entry[0]);
+      ownerTrails?.delete(key);
+      if (ownerTrails?.size === 0) cell?.delete(entry[0]);
+      if (cell?.size === 0) this.cells.delete(cellID);
     }
     for (const { owner, pos, radius } of sources) {
       if (radius <= 0) continue;
@@ -49,10 +64,7 @@ export class ShipVisionTrails {
       }
       const entry: ShipVisionTrail = [owner, pos, radius, tick];
       this.entries.set(key, entry);
-      const cellID = this.cell(pos);
-      let cell = this.cells.get(cellID);
-      if (!cell) this.cells.set(cellID, (cell = new Map()));
-      cell.set(key, entry);
+      this.index(key, entry);
     }
   }
 
@@ -70,7 +82,7 @@ export class ShipVisionTrails {
     const x = pos % this.width,
       y = Math.floor(pos / this.width);
     const range = unitVisionRadius(UnitType.Submarine);
-    const columns = Math.ceil(this.width / 64);
+    const columns = this.columns;
     for (
       let cy = Math.max(0, Math.floor((y - range) / 64));
       cy <= Math.floor((y + range) / 64);
@@ -83,19 +95,38 @@ export class ShipVisionTrails {
       ) {
         const cell = this.cells.get(cy * columns + cx);
         if (!cell) continue;
-        for (const [owner, tile, radius, seen] of cell.values()) {
-          if (tick - seen >= SHIP_VISION_LINGER_TICKS || !friendly(owner))
-            continue;
-          if (
-            ((tile % this.width) - x) ** 2 +
-              (Math.floor(tile / this.width) - y) ** 2 <=
-            radius ** 2
-          )
-            return true;
+        for (const [owner, trails] of cell) {
+          let ownerFriendly: boolean | undefined;
+          for (const {
+            entry,
+            x: tx,
+            y: ty,
+            radiusSquared,
+          } of trails.values()) {
+            if (tick - entry[3] >= SHIP_VISION_LINGER_TICKS) continue;
+            ownerFriendly ??= friendly(owner);
+            if (!ownerFriendly) break;
+            if ((tx - x) ** 2 + (ty - y) ** 2 <= radiusSquared) return true;
+          }
         }
       }
     }
     return false;
+  }
+
+  private index(key: string, entry: ShipVisionTrail): void {
+    const [owner, pos, radius] = entry;
+    const cellID = this.cell(pos);
+    let cell = this.cells.get(cellID);
+    if (!cell) this.cells.set(cellID, (cell = new Map()));
+    let trails = cell.get(owner);
+    if (!trails) cell.set(owner, (trails = new Map()));
+    trails.set(key, {
+      entry,
+      x: pos % this.width,
+      y: Math.floor(pos / this.width),
+      radiusSquared: radius * radius,
+    });
   }
 
   snapshot(): ShipVisionTrail[] {
@@ -110,10 +141,7 @@ export class ShipVisionTrails {
       const [owner, pos, radius] = entry;
       const key = `${owner}:${pos}:${radius}`;
       this.entries.set(key, entry);
-      const id = this.cell(pos);
-      let cell = this.cells.get(id);
-      if (!cell) this.cells.set(id, (cell = new Map()));
-      cell.set(key, entry);
+      this.index(key, entry);
     }
   }
 }

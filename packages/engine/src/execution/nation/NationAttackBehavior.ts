@@ -21,7 +21,7 @@ import {
   calculateBoundingBoxCenter,
 } from "@openfront/engine-lib/Util";
 import { CHEAPEST_TROOP_RATIO } from "../../configuration/EngineConfig";
-import { hasTileVision } from "../../game/FogOfWar";
+import { createTileVisionQuery, hasTileVision } from "../../game/FogOfWar";
 import { Attack, Game, Player, Unit } from "../../game/Game";
 import {
   canBuildTransportShip,
@@ -287,6 +287,7 @@ export class NationAttackBehavior extends AiAttackBehavior {
     const x = this.game.x(tile);
     const y = this.game.y(tile);
     const unreachablePlayers = new Set<PlayerID>();
+    const visible = createTileVisionQuery(this.game, this.player);
     for (let i = 0; i < 500; i++) {
       const randX = this.random.nextInt(x - 150, x + 150);
       const randY = this.random.nextInt(y - 150, y + 150);
@@ -300,7 +301,7 @@ export class NationAttackBehavior extends AiAttackBehavior {
       if (this.game.isImpassable(randTile)) {
         continue;
       }
-      if (!hasTileVision(this.game, this.player, randTile)) continue;
+      if (!visible(randTile)) continue;
       const owner = this.game.owner(randTile);
       if (owner === this.player) {
         continue;

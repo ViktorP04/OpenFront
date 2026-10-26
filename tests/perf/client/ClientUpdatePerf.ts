@@ -642,7 +642,8 @@ async function main(): Promise<void> {
       `(%, of the whole game phase including the sim — client work is the` +
         ` clone/view/builder share above)`,
     );
-    const fns = summarizeCpuProfile(profile, PROJECT_ROOT).filter(
+    const functions = summarizeCpuProfile(profile, PROJECT_ROOT);
+    const fns = functions.filter(
       (f) =>
         f.location.startsWith("src/client") ||
         f.functionName.includes("structuredClone") ||
@@ -653,6 +654,24 @@ async function main(): Promise<void> {
       table(
         ["self ms", "%", "function", "location"],
         fns
+          .slice(0, opts.top)
+          .map((f) => [
+            fmtMs(f.selfMs),
+            f.selfPct.toFixed(1),
+            f.functionName,
+            f.location,
+          ]),
+      ),
+    );
+
+    console.log(
+      "\n--- Top simulation functions by self time (same profile) ---",
+    );
+    console.log(
+      table(
+        ["self ms", "%", "function", "location"],
+        functions
+          .filter((f) => f.location.startsWith("packages/engine"))
           .slice(0, opts.top)
           .map((f) => [
             fmtMs(f.selfMs),

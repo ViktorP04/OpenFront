@@ -15,7 +15,7 @@ import {
 } from "@openfront/engine-lib/snapshot/SnapshotType";
 import { assertNever } from "@openfront/engine-lib/Util";
 import { z } from "zod";
-import { hasTileVision } from "../../game/FogOfWar";
+import { createTileVisionQuery, hasTileVision } from "../../game/FogOfWar";
 import { Game, Player, Unit } from "../../game/Game";
 import type {
   SnapshotReader,
@@ -140,6 +140,7 @@ export class NationWarshipBehavior {
     )
       return false;
     const anchor = scout?.tile() ?? this.random.randElement(ports).tile();
+    const visible = createTileVisionQuery(this.game, this.player);
     let waterFallback: TileRef | null = null;
     let target: TileRef | null = null;
     for (let i = 0; i < 64; i++) {
@@ -151,7 +152,7 @@ export class NationWarshipBehavior {
       const component = this.game.getWaterComponent(tile);
       if (component === null || !this.game.hasWaterComponent(anchor, component))
         continue;
-      if (hasTileVision(this.game, this.player, tile)) continue;
+      if (visible(tile)) continue;
       waterFallback ??= tile;
       // A coastal band is much easier to find than a one-tile shoreline.
       // Terrain is public even in fog; ownership and enemy units are not consulted.
@@ -170,7 +171,7 @@ export class NationWarshipBehavior {
           if (!this.game.isWater(coast) || this.game.isImpassable(coast))
             continue;
           if (!this.game.hasWaterComponent(coast, component)) continue;
-          if (hasTileVision(this.game, this.player, coast)) continue;
+          if (visible(coast)) continue;
           target = coast;
           break;
         }

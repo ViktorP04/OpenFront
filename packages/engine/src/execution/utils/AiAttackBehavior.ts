@@ -16,7 +16,7 @@ import {
 } from "@openfront/engine-lib/snapshot/SnapshotType";
 import { assertNever } from "@openfront/engine-lib/Util";
 import { z } from "zod";
-import { hasTileVision } from "../../game/FogOfWar";
+import { createTileVisionQuery, hasTileVision } from "../../game/FogOfWar";
 import { Attack, Game, Player, Unit } from "../../game/Game";
 import {
   canBuildTransportShip,
@@ -338,8 +338,8 @@ export abstract class AiAttackBehavior {
       return null;
     }
     const ours = this.shoreTiles(this.player);
-    const theirs = this.shoreTiles(target).filter((tile) =>
-      hasTileVision(this.game, this.player, tile),
+    const theirs = this.shoreTiles(target).filter(
+      createTileVisionQuery(this.game, this.player),
     );
     const closest = closestTwoTiles(this.game, ours, theirs);
     if (closest === null) return null;
@@ -429,12 +429,13 @@ export abstract class AiAttackBehavior {
   }
 
   protected hostileWarships(): Unit[] {
+    const visible = createTileVisionQuery(this.game, this.player);
     return this.game
       .units(UnitType.Warship)
       .filter(
         (w) =>
           w.owner() !== this.player &&
-          hasTileVision(this.game, this.player, w.tile()) &&
+          visible(w.tile()) &&
           !w.isUnderConstruction() &&
           w.warshipState().state !== "docked" &&
           w.owner().canAttackPlayer(this.player, true),
