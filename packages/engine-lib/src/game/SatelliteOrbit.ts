@@ -1,6 +1,30 @@
 export const SATELLITE_VISION = 160;
 const wrap = (n: number, size: number) => ((n % size) + size) % size;
 
+/** Fixed edge-to-edge track through the silo, in launch-direction order. */
+function orbitTrack(
+  width: number,
+  height: number,
+  x: number,
+  y: number,
+  dx: number,
+  dy: number,
+) {
+  const scale = Math.max(Math.abs(dx), Math.abs(dy));
+  if (scale === 0) throw new Error("Satellite orbit needs a direction");
+  const vx = dx / scale,
+    vy = dy / scale;
+  const cx = x + 0.5,
+    cy = y + 0.5;
+  const bounds = (p: number, v: number, size: number) =>
+    v === 0
+      ? [-Infinity, Infinity]
+      : [Math.min(-p / v, (size - p) / v), Math.max(-p / v, (size - p) / v)];
+  const [x0, x1] = bounds(cx, vx, width);
+  const [y0, y1] = bounds(cy, vy, height);
+  return { cx, cy, vx, vy, start: Math.max(x0, y0), end: Math.min(x1, y1) };
+}
+
 /** One tile along the dominant axis per simulation tick; exact integer inputs. */
 export function satellitePosition(
   width: number,
@@ -11,15 +35,22 @@ export function satellitePosition(
   dy: number,
   ticks: number,
 ) {
-  const scale = Math.max(Math.abs(dx), Math.abs(dy));
-  if (scale === 0) throw new Error("Satellite orbit needs a direction");
+  const { cx, cy, vx, vy, start, end } = orbitTrack(
+    width,
+    height,
+    x,
+    y,
+    dx,
+    dy,
+  );
+  const phase = start + wrap(ticks - start, end - start);
   return {
-    x: wrap(x + Math.floor((ticks * dx) / scale), width),
-    y: wrap(y + Math.floor((ticks * dy) / scale), height),
+    x: Math.max(0, Math.min(width - 1, Math.floor(cx + phase * vx))),
+    y: Math.max(0, Math.min(height - 1, Math.floor(cy + phase * vy))),
   };
 }
 
-/** Preview one dominant-axis circuit, splitting lines at map seams. */
+/** Preview the permanent track; its end wraps directly back to its start. */
 export function satelliteOrbitSegments(
   width: number,
   height: number,
@@ -30,30 +61,16 @@ export function satelliteOrbitSegments(
 ): number[][] {
   const dx = tx - sx,
     dy = ty - sy;
-  const scale = Math.max(Math.abs(dx), Math.abs(dy));
-  if (scale === 0) return [];
-  const vx = dx / scale,
-    vy = dy / scale;
-  let remaining = Math.abs(dx) >= Math.abs(dy) ? width : height;
-  let x = sx + 0.5,
-    y = sy + 0.5;
-  const lines: number[][] = [];
-  const maxSegments =
-    Math.ceil((Math.abs(vx) * remaining) / width) +
-    Math.ceil((Math.abs(vy) * remaining) / height) +
-    3;
-  for (let i = 0; i < maxSegments && remaining > 0.000001; i++) {
-    const ex = vx > 0 ? (width - x) / vx : vx < 0 ? -x / vx : Infinity;
-    const ey = vy > 0 ? (height - y) / vy : vy < 0 ? -y / vy : Infinity;
-    const step = Math.min(remaining, ex, ey);
-    const nx = x + vx * step,
-      ny = y + vy * step;
-    lines.push([x, y, nx, ny]);
-    remaining -= step;
-    x = ex <= step + 0.000001 ? (vx > 0 ? 0 : width) : nx;
-    y = ey <= step + 0.000001 ? (vy > 0 ? 0 : height) : ny;
-  }
-  return lines;
+  if (dx === 0 && dy === 0) return [];
+  const { cx, cy, vx, vy, start, end } = orbitTrack(
+    width,
+    height,
+    sx,
+    sy,
+    dx,
+    dy,
+  );
+  return [[cx + start * vx, cy + start * vy, cx + end * vx, cy + end * vy]];
 }
 
 export function satelliteDistanceSquared(

@@ -179,24 +179,61 @@ it("provides moving allied vision matching the client, including wrapped map edg
   expect(hasTileVision(game, a, at(400))).toBe(true);
 });
 
-it("previews the same launch direction without drawing lines across wrapping seams", () => {
+it("wraps from the end of a fixed preview track back to its start", () => {
   expect(satellitePosition(100, 60, 90, 30, 30, 0, 20)).toEqual({
     x: 10,
     y: 30,
   });
   expect(satellitePosition(100, 60, 5, 5, -10, -10, 10)).toEqual({
-    x: 95,
+    x: 55,
     y: 55,
   });
   const segments = satelliteOrbitSegments(100, 60, 90, 30, 95, 30);
-  expect(segments).toEqual([
-    [90.5, 30.5, 100, 30.5],
-    [0, 30.5, 90.5, 30.5],
-  ]);
+  expect(segments).toEqual([[0, 30.5, 100, 30.5]]);
   expect(satelliteOrbitSegments(100, 60, 5, 5, 5, 5)).toEqual([]);
   const wide = satelliteOrbitSegments(1000, 100, 20, 20, 70, 70);
-  expect(wide.length).toBeGreaterThan(5);
-  expect(
-    wide.reduce((distance, [x, , nx]) => distance + nx - x, 0),
-  ).toBeCloseTo(1000);
+  expect(wide).toEqual([[0, 0, 100, 100]]);
+  expect(satellitePosition(1000, 100, 20, 20, 50, 50, 80)).toEqual({
+    x: 0,
+    y: 0,
+  });
+  expect(satellitePosition(1000, 100, 20, 20, 50, 50, 180)).toEqual({
+    x: 0,
+    y: 0,
+  });
+});
+
+it.each([
+  [30, 17],
+  [-30, 17],
+  [30, -17],
+  [-30, -17],
+  [0, 30],
+  [30, 0],
+])("keeps repeated circuits on the preview for direction %s,%s", (dx, dy) => {
+  const [[x0, y0, x1, y1]] = satelliteOrbitSegments(
+    137,
+    83,
+    41,
+    29,
+    41 + dx,
+    29 + dy,
+  );
+  const length = Math.hypot(x1 - x0, y1 - y0);
+  expect(satellitePosition(137, 83, 41, 29, dx, dy, 0)).toEqual({
+    x: 41,
+    y: 29,
+  });
+  for (let tick = 0; tick < 2000; tick++) {
+    const { x, y } = satellitePosition(137, 83, 41, 29, dx, dy, tick);
+    expect(x).toBeGreaterThanOrEqual(0);
+    expect(x).toBeLessThan(137);
+    expect(y).toBeGreaterThanOrEqual(0);
+    expect(y).toBeLessThan(83);
+    // The centre of the rasterized tile stays within one pixel of the track.
+    const distance =
+      Math.abs((x + 0.5 - x0) * (y1 - y0) - (y + 0.5 - y0) * (x1 - x0)) /
+      length;
+    expect(distance).toBeLessThanOrEqual(Math.SQRT2);
+  }
 });
